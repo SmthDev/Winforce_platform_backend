@@ -1,2 +1,2 @@
 ## Winforce platform 
-### setup and main info
+### setup and main info about projects
