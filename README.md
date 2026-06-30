@@ -1,1 +1,2 @@
-# Winforce_platform
+## Winforce platform 
+### setup and main info
