@@ -8,6 +8,11 @@ import (
 
 func NewRouter() *gin.Engine {
 	r := gin.Default()
-	r.GET("/health", handler.Health)
+
+	v1 := r.Group("/api/v1")
+	{
+		v1.GET("/health", handler.Health)
+	}
+
 	return r
 }
