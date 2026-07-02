@@ -1,0 +1,6 @@
+name: winforce-api
+variables:
+  - name: stage_url
+    value: https://winforce-platform.onrender.com/api/v1/health
+  - name: version
+    value: /api/v1
