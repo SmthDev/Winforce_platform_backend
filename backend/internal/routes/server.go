@@ -9,6 +9,9 @@ import (
 func NewRouter() *gin.Engine {
 	r := gin.Default()
 
+
+	r.StaticFile("/docs/api.html", "../docs/winforce-documentation.html")
+
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/health", handler.Health)
