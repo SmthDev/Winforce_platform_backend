@@ -1,4 +1,4 @@
-module github.com/saneechka/Winforce_platform/backend
+module platform/backend
 
 go 1.26.1
 

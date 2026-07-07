@@ -3,7 +3,7 @@ package routes
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/saneechka/Winforce_platform/backend/internal/handlers"
+	"platform/backend/internal/handlers"
 )
 
 func NewRouter() *gin.Engine {
@@ -14,7 +14,7 @@ func NewRouter() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		v1.GET("/health", handler.Health)
+		v1.GET("/health", handlers.Health)
 	}
 
 	return r

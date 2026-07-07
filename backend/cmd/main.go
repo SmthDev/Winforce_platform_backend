@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/saneechka/Winforce_platform/backend/internal/routes"
+	"platform/backend/internal/routes"
 )
 
 func main() {
