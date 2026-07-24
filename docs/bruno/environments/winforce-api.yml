@@ -1,4 +1,8 @@
 name: winforce-api
 variables:
+  - name: base_url
+    value: http://localhost:8081
   - name: stage_url
-    value: https://winforce-platform.onrender.com/api/v1
+    value: http://localhost:8081/api/v1
+  - name: origin
+    value: http://localhost:5173

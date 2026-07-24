@@ -1,0 +1,27 @@
+info:
+  name: signup
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: '{{stage_url}}/auth/signup/credential'
+  auth: inherit
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "email": "user@example.com",
+        "password": "Passw0rd!"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

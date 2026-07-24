@@ -1,0 +1,20 @@
+info:
+  name: signout
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: '{{stage_url}}/auth/signout'
+  auth: inherit
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Origin
+      value: '{{origin}}'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
