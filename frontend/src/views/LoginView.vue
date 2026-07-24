@@ -72,7 +72,7 @@ async function onSubmit() {
             class="field__input field__input--never-invalid"
             type="email"
             name="email"
-            placeholder="you@esqrd.co"
+            placeholder="your_email@gmail.com"
             autocomplete="email"
             inputmode="email"
             spellcheck="false"
