@@ -2,13 +2,14 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-
+	"platform/backend/internal/middleware"
 	"platform/backend/internal/handlers"
 )
 
 func NewRouter() *gin.Engine {
 	r := gin.Default()
 
+	r.Use(middleware.CORS())
 
 	r.StaticFile("/docs/api.html", "../docs/winforce-documentation.html")
 
