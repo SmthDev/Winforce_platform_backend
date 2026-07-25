@@ -6,7 +6,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -55,7 +55,7 @@ func Run(ctx context.Context, dsn, action string, args ...string) error {
 	}
 	defer func() {
 		if srcErr, dbErr := m.Close(); srcErr != nil || dbErr != nil {
-			log.Printf("close migrator: source=%v db=%v", srcErr, dbErr)
+			slog.Warn("close migrator", slog.Any("source_error", srcErr), slog.Any("db_error", dbErr))
 		}
 	}()
 
@@ -90,13 +90,13 @@ func Run(ctx context.Context, dsn, action string, args ...string) error {
 	case "version":
 		version, dirty, verErr := m.Version()
 		if errors.Is(verErr, migrate.ErrNilVersion) {
-			log.Printf("no migrations applied")
+			slog.Info("no migrations applied")
 			return nil
 		}
 		if verErr != nil {
 			return fmt.Errorf("version: %w", verErr)
 		}
-		log.Printf("version: %d, dirty: %v", version, dirty)
+		slog.Info("migration version", slog.Uint64("version", uint64(version)), slog.Bool("dirty", dirty))
 		return nil
 	case "force":
 		if len(args) == 0 {

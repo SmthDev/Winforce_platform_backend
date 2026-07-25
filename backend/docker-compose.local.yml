@@ -18,5 +18,41 @@ services:
       timeout: 5s
       retries: 5
 
+  loki:
+    image: grafana/loki:3.7.4
+    container_name: winforce-loki
+    restart: unless-stopped
+  
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - lokidata:/tmp/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:13.1.1
+    container_name: winforce-grafana
+    restart: unless-stopped
+    depends_on:
+      - loki
+    environment:
+
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: dark
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+
 volumes:
   pgdata:
+  lokidata:
+  grafanadata:

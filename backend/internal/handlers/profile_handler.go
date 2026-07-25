@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,10 @@ func Profile(profileService ProfileService) gin.HandlerFunc {
 
 		profile, err := profileService.GetUserProfile(c.Request.Context(), user.ID)
 		if err != nil {
+			middleware.Logger(c).Error("load profile failed",
+				slog.Any("error", err),
+				slog.Any("user_id", user.ID),
+			)
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load profile"})
 			return
 		}
@@ -48,6 +53,10 @@ func UpdateProfileName(profileService ProfileService) gin.HandlerFunc {
 		}
 
 		if err := profileService.UpdateName(c.Request.Context(), user.ID, m.FirstName, m.LastName); err != nil {
+			middleware.Logger(c).Error("update profile failed",
+				slog.Any("error", err),
+				slog.Any("user_id", user.ID),
+			)
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update profile"})
 			return
 		}

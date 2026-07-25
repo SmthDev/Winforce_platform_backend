@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/thecodearcher/limen"
 
+	"platform/backend/internal/middleware"
 	"platform/backend/internal/service"
 )
 
@@ -23,6 +25,7 @@ func Login(instance *limen.Limen) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxLoginBodyBytes))
 		if err != nil {
+			middleware.Logger(c).Warn("read login body failed", slog.Any("error", err))
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid request body"})
 			return
 		}
