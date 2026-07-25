@@ -41,7 +41,7 @@ async function onSubmit() {
   try {
     await login(email.value.trim(), password.value)
     password.value = ''
-    window.location.href = '/'
+    window.location.href = '/home'
   } catch (e) {
 
     error.value =

@@ -5,28 +5,33 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/thecodearcher/limen"
 
 	"platform/backend/internal/config"
 	"platform/backend/internal/db"
 	"platform/backend/internal/handlers"
 	"platform/backend/internal/middleware"
+	"platform/backend/internal/repository/postgres/user_repo"
 	"platform/backend/internal/service"
 )
 
-func NewRouter(cfg *config.Config, authInstance *limen.Limen) *gin.Engine {
+func NewRouter(cfg *config.Config, authInstance *limen.Limen, pool *pgxpool.Pool) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(middleware.CORS(cfg.FrontendURL))
 
 	r.StaticFile("/docs/api.html", "../docs/winforce-documentation.html")
 
+	profileService := service.NewProfile(user_repo.New(pool))
+
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/health", handlers.Health)
 		v1.Any("/auth/*path", gin.WrapH(authInstance.Handler()))
 		v1.POST("/login", handlers.Login(authInstance))
-		v1.GET("/profile", middleware.RequireAuth(authInstance), handlers.Profile)
+		v1.GET("/profile", middleware.RequireAuth(authInstance), handlers.Profile(profileService))
+		v1.PATCH("/profile", middleware.RequireAuth(authInstance), handlers.UpdateProfileName(profileService))
 	}
 
 	return r
@@ -65,5 +70,5 @@ func RunApp(){
 	}
 	defer authDB.Close()
 
-	NewRouter(cfg, authInstance).Run(":" + cfg.Port)
+	NewRouter(cfg, authInstance, pool).Run(":" + cfg.Port)
 }

@@ -5,17 +5,20 @@ export interface LoginResponse {
   session?: { id?: string; expires_at?: string }
 }
 
+export interface ProfileResponse {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+}
+
 export async function getHealth(): Promise<unknown> {
   const res = await fetch(`${BASE_URL}/health`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
 
-/**
- * Signs in through POST /login, the backend alias for Limen's
- * credential-password sign-in. The session comes back as a cookie, so the
- * request must be credentialed.
- */
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const res = await fetch(`${BASE_URL}/login`, {
     method: 'POST',
@@ -28,6 +31,32 @@ export async function login(email: string, password: string): Promise<LoginRespo
     throw new Error(await readError(res))
   }
   return readBody<LoginResponse>(res)
+}
+
+
+export async function getProfile(): Promise<ProfileResponse> {
+  const res = await fetch(`${BASE_URL}/profile`, {
+    credentials: 'include',
+  })
+
+  if (!res.ok) {
+    throw new Error(await readError(res))
+  }
+  return readBody<ProfileResponse>(res)
+}
+
+export async function updateProfileName(firstName: string, lastName: string): Promise<ProfileResponse> {
+  const res = await fetch(`${BASE_URL}/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ first_name: firstName, last_name: lastName }),
+  })
+
+  if (!res.ok) {
+    throw new Error(await readError(res))
+  }
+  return readBody<ProfileResponse>(res)
 }
 
 async function readBody<T>(res: Response): Promise<T> {
