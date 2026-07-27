@@ -24,8 +24,6 @@ type Config struct {
 
 	LogLevel  string
 	LogFormat string
-	LokiOTLPEndpoint string
-	LokiTenantID     string
 }
 
 func Load() (*Config, error) {
@@ -43,10 +41,8 @@ func Load() (*Config, error) {
 		LimenSecret:  os.Getenv("LIMEN_SECRET"),
 		CookieSecure: GetBoolEnv("COOKIE_SECURE", false),
 
-		LogLevel:         GetEnv("LOG_LEVEL", "info"),
-		LogFormat:        GetEnv("LOG_FORMAT", "json"),
-		LokiOTLPEndpoint: os.Getenv("LOKI_OTLP_ENDPOINT"),
-		LokiTenantID:     os.Getenv("LOKI_TENANT_ID"),
+		LogLevel:  GetEnv("LOG_LEVEL", "info"),
+		LogFormat: GetEnv("LOG_FORMAT", "json"),
 	}
 
 	if cfg.DatabaseURL == "" {

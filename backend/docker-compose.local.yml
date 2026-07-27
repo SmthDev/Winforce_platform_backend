@@ -33,6 +33,33 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: winforce-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8080}:8080"
+
+  alloy:
+    image: grafana/alloy:v1.6.1
+    container_name: winforce-alloy
+    restart: unless-stopped
+    depends_on:
+      - loki
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./deploy/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+
   grafana:
     image: grafana/grafana:13.1.1
     container_name: winforce-grafana

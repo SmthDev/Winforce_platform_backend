@@ -159,12 +159,10 @@ func run() error {
 
 func setupLogger(ctx context.Context, cfg *config.Config) (*slog.Logger, logger.CloseFunc, error) {
 	log, closeLogger, err := logger.Setup(ctx, logger.Options{
-		Level:        cfg.LogLevel,
-		Format:       cfg.LogFormat,
-		ServiceName:  cfg.ServiceName,
-		Env:          cfg.Env,
-		OTLPEndpoint: cfg.LokiOTLPEndpoint,
-		TenantID:     cfg.LokiTenantID,
+		Level:       cfg.LogLevel,
+		Format:      cfg.LogFormat,
+		ServiceName: cfg.ServiceName,
+		Env:         cfg.Env,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("setup logger: %w", err)
