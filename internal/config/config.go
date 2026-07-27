@@ -24,6 +24,11 @@ type Config struct {
 
 	LogLevel  string
 	LogFormat string
+
+	MinioEndpoint  string
+	MinioAccessKey string
+	MinioSecretKey string
+	MinioUseSSL    bool
 }
 
 func Load() (*Config, error) {
@@ -43,6 +48,11 @@ func Load() (*Config, error) {
 
 		LogLevel:  GetEnv("LOG_LEVEL", "info"),
 		LogFormat: GetEnv("LOG_FORMAT", "json"),
+
+		MinioEndpoint:  GetEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinioAccessKey: os.Getenv("MINIO_ROOT_USER"),
+		MinioSecretKey: os.Getenv("MINIO_ROOT_PASSWORD"),
+		MinioUseSSL:    GetBoolEnv("MINIO_USE_SSL", false),
 	}
 
 	if cfg.DatabaseURL == "" {

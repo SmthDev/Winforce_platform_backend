@@ -20,6 +20,8 @@ import (
 	"platform/backend/internal/handlers"
 	"platform/backend/internal/logger"
 	"platform/backend/internal/middleware"
+	miniorepo "platform/backend/internal/repository/minio"
+	"platform/backend/internal/repository/postgres/avatar_repo"
 	"platform/backend/internal/repository/postgres/user_repo"
 	"platform/backend/internal/service"
 )
@@ -28,9 +30,11 @@ const (
 	shutdownTimeout = 10 * time.Second
 	logFlushTimeout = 5 * time.Second
 	healthPath      = "/api/v1/health"
+
+	avatarsBucket = "avatars"
 )
 
-func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool) *gin.Engine {
+func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool, minioClient *miniorepo.Client) *gin.Engine {
 	r := gin.New()
 
 
@@ -44,6 +48,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 	r.StaticFile("/docs/api.html", "../docs/winforce-documentation.html")
 
 	profileService := service.NewProfile(user_repo.New(pool))
+	avatarService := service.NewAvatar(avatar_repo.New(pool), minioClient, log)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -52,6 +57,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		v1.POST("/login", handlers.Login(authInstance))
 		v1.GET("/profile", middleware.RequireAuth(authInstance), handlers.Profile(profileService))
 		v1.PATCH("/profile", middleware.RequireAuth(authInstance), handlers.UpdateProfileName(profileService))
+		v1.POST("/profile/avatar", middleware.RequireAuth(authInstance), handlers.UploadAvatar(avatarService, avatarsBucket))
 	}
 
 	return r
@@ -125,11 +131,20 @@ func run() error {
 	}
 	defer authDB.Close()
 
+	minioClient, err := miniorepo.New(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
+	if err != nil {
+		return fmt.Errorf("minio setup failed: %w", err)
+	}
+	if err := minioClient.EnsureBucket(ctx, avatarsBucket, true); err != nil {
+		return fmt.Errorf("minio bucket setup failed: %w", err)
+	}
+	log.Info("connected to minio")
+
 	gin.SetMode(ginMode(cfg.Env))
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: NewRouter(cfg, log, authInstance, pool),
+		Handler: NewRouter(cfg, log, authInstance, pool, minioClient),
 	}
 
 	serverErr := make(chan error, 1)
