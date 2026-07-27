@@ -45,7 +45,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${PORT:-8080}:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
 
   alloy:
     image: grafana/alloy:v1.6.1
