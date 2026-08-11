@@ -2,9 +2,11 @@ package user_repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"platform/backend/internal/models"
@@ -34,6 +36,18 @@ func (r *Repo) UpdateName(ctx context.Context, userID any, firstName, lastName s
 }
 
 
+
+func (r *Repo) IsAdmin(ctx context.Context, userID any) (bool, bool, error) {
+	var isAdmin bool
+	err := r.pool.QueryRow(ctx, `SELECT role = 'admin' FROM users WHERE id = $1`, userID).Scan(&isAdmin)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, fmt.Errorf("check user role: %w", err)
+	}
+	return isAdmin, true, nil
+}
 
 func (r *Repo) GetUserProfile(ctx context.Context, userID any) (models.Profile, error) {
 	var (

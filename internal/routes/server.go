@@ -22,6 +22,7 @@ import (
 	"platform/backend/internal/middleware"
 	miniorepo "platform/backend/internal/repository/minio"
 	"platform/backend/internal/repository/postgres/avatar_repo"
+	"platform/backend/internal/repository/postgres/qr_repo"
 	"platform/backend/internal/repository/postgres/user_repo"
 	"platform/backend/internal/service"
 )
@@ -32,6 +33,7 @@ const (
 	healthPath      = "/api/v1/health"
 
 	avatarsBucket = "avatars"
+	qrCodesBucket = "qr-codes"
 )
 
 func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool, minioClient *miniorepo.Client) *gin.Engine {
@@ -47,8 +49,12 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 
 	r.StaticFile("/docs/api.html", "../docs/winforce-documentation.html")
 
-	profileService := service.NewProfile(user_repo.New(pool))
+	userRepo := user_repo.New(pool)
+
+	profileService := service.NewProfile(userRepo)
+	accessService := service.NewAccess(userRepo)
 	avatarService := service.NewAvatar(avatar_repo.New(pool), minioClient, log)
+	qrService := service.NewQR(qr_repo.New(pool), minioClient, log)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -58,6 +64,12 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		v1.GET("/profile", middleware.RequireAuth(authInstance), handlers.Profile(profileService))
 		v1.PATCH("/profile", middleware.RequireAuth(authInstance), handlers.UpdateProfileName(profileService))
 		v1.POST("/profile/avatar", middleware.RequireAuth(authInstance), handlers.UploadAvatar(avatarService, avatarsBucket))
+
+		qr := v1.Group("/qr", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
+		{
+			qr.POST("", handlers.UploadQRCode(qrService, qrCodesBucket))
+			qr.GET("", handlers.ListQRCodes(qrService))
+		}
 	}
 
 	return r
@@ -136,6 +148,9 @@ func run() error {
 		return fmt.Errorf("minio setup failed: %w", err)
 	}
 	if err := minioClient.EnsureBucket(ctx, avatarsBucket, true); err != nil {
+		return fmt.Errorf("minio bucket setup failed: %w", err)
+	}
+	if err := minioClient.EnsureBucket(ctx, qrCodesBucket, true); err != nil {
 		return fmt.Errorf("minio bucket setup failed: %w", err)
 	}
 	log.Info("connected to minio")
