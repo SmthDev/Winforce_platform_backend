@@ -1,0 +1,66 @@
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["service"]
+    regex         = "loki|alloy|grafana"
+    action        = "drop"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.process.containers.receiver]
+}
+
+// The backend emits structured JSON via slog. Parsing it here promotes `level`
+// to a real label (so it can be alerted on without a per-query parser) and
+// adopts the application timestamp instead of the container read time. Other
+// services log plain text and pass through untouched.
+loki.process "containers" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.match {
+    selector = "{service=\"backend\"}"
+
+    stage.json {
+      expressions = {
+        level = "level",
+        time  = "time",
+      }
+    }
+
+    stage.timestamp {
+      source = "time"
+      format = "RFC3339Nano"
+    }
+
+    stage.labels {
+      values = {
+        level = "",
+      }
+    }
+  }
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

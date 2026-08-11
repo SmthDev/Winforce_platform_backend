@@ -1,0 +1,26 @@
+info:
+  name: usernames-check
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: '{{stage_url}}/auth/usernames/check'
+  auth: inherit
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "username": "someuser"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

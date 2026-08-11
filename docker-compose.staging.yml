@@ -1,0 +1,124 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: winforce-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  loki:
+    image: grafana/loki:3.7.4
+    container_name: winforce-loki
+    restart: unless-stopped
+    environment:
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-336h}
+    volumes:
+      - lokidata:/loki
+      - ./deploy/loki/config.yml:/etc/loki/config.yml:ro
+    command: -config.file=/etc/loki/config.yml -config.expand-env=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: winforce-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot job: the schema must exist before the backend boots, otherwise
+  # limen fails to initialise against an empty database.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: winforce-backend:staging
+    container_name: winforce-migrate
+    command: ["migrate", "up"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: winforce-backend:staging
+    container_name: winforce-backend
+    restart: unless-stopped
+    # Graceful shutdown budget (10s drain + 5s log flush) must fit inside this.
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:${PORT:-8080}/api/v1/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  alloy:
+    image: grafana/alloy:v1.6.1
+    container_name: winforce-alloy
+    restart: unless-stopped
+    depends_on:
+      - loki
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./deploy/alloy/config.prod.alloy:/etc/alloy/config.alloy:ro
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+
+  grafana:
+    image: grafana/grafana:13.1.1
+    container_name: winforce-grafana
+    restart: unless-stopped
+    depends_on:
+      - loki
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_DEFAULT_THEME: dark
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+
+volumes:
+  pgdata:
+  lokidata:
+  grafanadata:
+  miniodata:

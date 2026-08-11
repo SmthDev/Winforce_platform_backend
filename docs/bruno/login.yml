@@ -1,0 +1,28 @@
+info:
+  name: login
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: '{{stage_url}}/login'
+  auth: inherit
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "email": "user@example.com",
+        "password": "Passw0rd!",
+        "remember_me": true
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
