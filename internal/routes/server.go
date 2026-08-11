@@ -64,11 +64,12 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		v1.GET("/profile", middleware.RequireAuth(authInstance), handlers.Profile(profileService))
 		v1.PATCH("/profile", middleware.RequireAuth(authInstance), handlers.UpdateProfileName(profileService))
 		v1.POST("/profile/avatar", middleware.RequireAuth(authInstance), handlers.UploadAvatar(avatarService, avatarsBucket))
+		v1.GET("/qr", middleware.RequireAuth(authInstance), handlers.ListQRCodes(qrService))
 
 		qr := v1.Group("/qr", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
 		{
-			qr.POST("", handlers.UploadQRCode(qrService, qrCodesBucket))
-			qr.GET("", handlers.ListQRCodes(qrService))
+			qr.POST("/create", handlers.UploadQRCode(qrService, qrCodesBucket))
+			//qr.GET("", handlers.ListQRCodes(qrService))
 		}
 	}
 
