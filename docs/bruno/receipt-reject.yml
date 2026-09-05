@@ -1,0 +1,24 @@
+info:
+  name: receipt-reject
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: '{{stage_url}}/balance/receipts/1/reject'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "fake receipt"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

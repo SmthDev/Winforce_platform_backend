@@ -14,9 +14,16 @@ http:
   body:
     type: json
     data: |-
+      // {
+      //   "email": "alex.zahreshchanka@gmail.com",
+      //   "password": "Alex.zahreshchanka21!"
+      // }
+
+
       {
-        "email": "alex.zahreshchanka@gmail.com",
-        "password": "Alex.zahreshchanka21!"
+        "email":"leshenkov2007@gmail.com",
+        "password": "Sasha20062007!"
+
       }
   auth: inherit
 
@@ -25,7 +32,7 @@ runtime:
     - name: stage_url
       value: localhost:8081/api/v1
     - name: origin
-      value: http://192.168.1.3:5173
+      value: http://192.168.100.184:5173
 
 settings:
   encodeUrl: true

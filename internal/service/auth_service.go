@@ -30,7 +30,7 @@ func NewAuth(cfg *config.Config, pool *pgxpool.Pool) (*limen.Limen, *sql.DB, err
 		},
 		HTTP: limen.NewDefaultHTTPConfig(
 			limen.WithHTTPBasePath(AuthBasePath),
-			limen.WithHTTPTrustedOrigins([]string{cfg.FrontendURL}),
+			limen.WithHTTPTrustedOrigins(cfg.AllowedOrigins),
 			limen.WithHTTPCookieSecure(cfg.CookieSecure),
 		),
 

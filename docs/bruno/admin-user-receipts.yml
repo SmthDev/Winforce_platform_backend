@@ -1,0 +1,18 @@
+info:
+  name: admin-user-receipts
+  type: http
+  seq: 25
+
+http:
+  method: GET
+  url: '{{stage_url}}/balance/users/1/receipts?limit=50&offset=0'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

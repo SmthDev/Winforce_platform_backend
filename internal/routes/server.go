@@ -21,7 +21,9 @@ import (
 	"platform/backend/internal/logger"
 	"platform/backend/internal/middleware"
 	miniorepo "platform/backend/internal/repository/minio"
+	"platform/backend/internal/repository/parsing"
 	"platform/backend/internal/repository/postgres/avatar_repo"
+	"platform/backend/internal/repository/postgres/balance_repo"
 	"platform/backend/internal/repository/postgres/qr_repo"
 	"platform/backend/internal/repository/postgres/user_repo"
 	"platform/backend/internal/service"
@@ -32,11 +34,12 @@ const (
 	logFlushTimeout = 5 * time.Second
 	healthPath      = "/api/v1/health"
 
-	avatarsBucket = "avatars"
-	qrCodesBucket = "qr-codes"
+	avatarsBucket  = "avatars"
+	qrCodesBucket  = "qr-codes"
+	receiptsBucket = "receipts"
 )
 
-func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool, minioClient *miniorepo.Client) *gin.Engine {
+func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool, minioClient *miniorepo.Client, parsingClient *parsing.Client) *gin.Engine {
 	r := gin.New()
 
 
@@ -44,7 +47,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		gin.Logger(),
 		middleware.RequestLogger(log, healthPath),
 		middleware.Recovery(),
-		middleware.CORS(cfg.FrontendURL),
+		middleware.CORS(cfg.AllowedOrigins...),
 	)
 
 	r.StaticFile("/docs/api.html", "../docs/winforce-documentation.html")
@@ -55,6 +58,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 	accessService := service.NewAccess(userRepo)
 	avatarService := service.NewAvatar(avatar_repo.New(pool), minioClient, log)
 	qrService := service.NewQR(qr_repo.New(pool), minioClient, log)
+	balanceService := service.NewBalance(balance_repo.New(pool), parsingClient, minioClient, log, cfg.BalanceCurrency)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -66,10 +70,25 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		v1.POST("/profile/avatar", middleware.RequireAuth(authInstance), handlers.UploadAvatar(avatarService, avatarsBucket))
 		v1.GET("/qr", middleware.RequireAuth(authInstance), handlers.ListQRCodes(qrService))
 
+		v1.GET("/balance", middleware.RequireAuth(authInstance), handlers.GetBalance(balanceService))
+		v1.GET("/balance/transactions", middleware.RequireAuth(authInstance), handlers.ListBalanceTransactions(balanceService))
+		v1.GET("/balance/receipts", middleware.RequireAuth(authInstance), handlers.ListReceipts(balanceService, receiptsBucket))
+		v1.POST("/balance/receipts", middleware.RequireAuth(authInstance), handlers.UploadReceipt(balanceService, receiptsBucket))
+
 		qr := v1.Group("/qr", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
 		{
 			qr.POST("/create", handlers.UploadQRCode(qrService, qrCodesBucket))
 			//qr.GET("", handlers.ListQRCodes(qrService))
+		}
+
+		balanceAdmin := v1.Group("/balance", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
+		{
+			balanceAdmin.POST("/adjust", handlers.AdjustBalance(balanceService))
+			balanceAdmin.POST("/receipts/:id/reject", handlers.RejectReceipt(balanceService))
+			balanceAdmin.GET("/receipts/all", handlers.ListAllReceipts(balanceService, receiptsBucket))
+			balanceAdmin.GET("/users/:user_id", handlers.GetUserBalanceByID(balanceService))
+			balanceAdmin.GET("/users/:user_id/transactions", handlers.ListUserBalanceTransactions(balanceService))
+			balanceAdmin.GET("/users/:user_id/receipts", handlers.ListUserReceipts(balanceService, receiptsBucket))
 		}
 	}
 
@@ -154,13 +173,22 @@ func run() error {
 	if err := minioClient.EnsureBucket(ctx, qrCodesBucket, true); err != nil {
 		return fmt.Errorf("minio bucket setup failed: %w", err)
 	}
+
+	if err := minioClient.EnsureBucket(ctx, receiptsBucket, false); err != nil {
+		return fmt.Errorf("minio bucket setup failed: %w", err)
+	}
 	log.Info("connected to minio")
+
+	parsingClient := parsing.New(cfg.ParsingAPIURL, cfg.ParsingAPIKey, cfg.ParsingAPITimeout)
+	if cfg.ParsingAPIURL == "" {
+		log.Warn("PARSING_API_URL is not set, receipt upload will return 503")
+	}
 
 	gin.SetMode(ginMode(cfg.Env))
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: NewRouter(cfg, log, authInstance, pool, minioClient),
+		Handler: NewRouter(cfg, log, authInstance, pool, minioClient, parsingClient),
 	}
 
 	serverErr := make(chan error, 1)

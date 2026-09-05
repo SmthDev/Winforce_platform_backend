@@ -1,0 +1,27 @@
+info:
+  name: balance-adjust
+  type: http
+  seq: 20
+
+http:
+  method: POST
+  url: '{{stage_url}}/balance/adjust'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "user_id": 1,
+        "amount_minor": -1800,
+        "currency": "BYN",
+        "comment": "manual correction"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

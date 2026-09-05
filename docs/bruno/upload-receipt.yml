@@ -1,0 +1,26 @@
+info:
+  name: upload-receipt
+  type: http
+  seq: 19
+
+http:
+  method: POST
+  url: '{{stage_url}}/balance/receipts'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: multipart-form
+    data:
+      - name: receipt
+        type: file
+        value:
+          - /Users/aleksandrzagresenko/projects/parsing/images/mtbank.pdf
+        contentType: application/pdf
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

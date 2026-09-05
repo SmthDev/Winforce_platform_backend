@@ -4,23 +4,33 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 
-const limenSecretLength = 32
+const (
+	limenSecretLength = 32
+
+
+	defaultParsingTimeout  = 90 * time.Second
+	defaultBalanceCurrency = "BYN"
+)
 
 type Config struct {
-	Port         string
-	Env          string
-	ServiceName  string
-	FrontendURL  string
-	DatabaseURL  string
-	BaseURL      string
-	LimenSecret  string
-	CookieSecure bool
+	Port        string
+	Env         string
+	ServiceName string
+	FrontendURL string
+	AllowedOrigins []string
+	DatabaseURL    string
+	BaseURL        string
+	LimenSecret    string
+	CookieSecure   bool
 
 	LogLevel  string
 	LogFormat string
@@ -29,6 +39,10 @@ type Config struct {
 	MinioAccessKey string
 	MinioSecretKey string
 	MinioUseSSL    bool
+	ParsingAPIURL     string
+	ParsingAPIKey     string
+	ParsingAPITimeout time.Duration
+	BalanceCurrency string
 }
 
 func Load() (*Config, error) {
@@ -53,7 +67,15 @@ func Load() (*Config, error) {
 		MinioAccessKey: os.Getenv("MINIO_ROOT_USER"),
 		MinioSecretKey: os.Getenv("MINIO_ROOT_PASSWORD"),
 		MinioUseSSL:    GetBoolEnv("MINIO_USE_SSL", false),
+
+		ParsingAPIURL:     strings.TrimRight(os.Getenv("PARSING_API_URL"), "/"),
+		ParsingAPIKey:     os.Getenv("PARSING_API_KEY"),
+		ParsingAPITimeout: GetDurationEnv("PARSING_API_TIMEOUT", defaultParsingTimeout),
+
+		BalanceCurrency: strings.ToUpper(GetEnv("BALANCE_CURRENCY", defaultBalanceCurrency)),
 	}
+
+	cfg.AllowedOrigins = allowedOrigins(cfg.FrontendURL)
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is not set")
@@ -64,6 +86,19 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func allowedOrigins(frontendURL string) []string {
+	origins := []string{frontendURL}
+
+	for origin := range strings.SplitSeq(os.Getenv("ALLOWED_ORIGINS"), ",") {
+		origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+		if origin == "" || slices.Contains(origins, origin) {
+			continue
+		}
+		origins = append(origins, origin)
+	}
+	return origins
 }
 
 func LoadEnv() error {
@@ -84,6 +119,14 @@ func GetEnv(key, defaultValue string) string {
 func GetBoolEnv(key string, defaultValue bool) bool {
 	value, err := strconv.ParseBool(os.Getenv(key))
 	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func GetDurationEnv(key string, defaultValue time.Duration) time.Duration {
+	value, err := time.ParseDuration(os.Getenv(key))
+	if err != nil || value <= 0 {
 		return defaultValue
 	}
 	return value
