@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"net/http"
+	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,10 +12,17 @@ import (
 const defaultAllowedOrigin = "http://localhost:5173"
 
 
+
 func CORS(allowedOrigins ...string) gin.HandlerFunc {
 	origins := make([]string, 0, len(allowedOrigins))
+	patterns := make([]*regexp.Regexp, 0, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
-		if origin != "" {
+		origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+		switch {
+		case origin == "":
+		case strings.Contains(origin, "*"):
+			patterns = append(patterns, compileOriginPattern(origin))
+		default:
 			origins = append(origins, origin)
 		}
 	}
@@ -23,7 +32,8 @@ func CORS(allowedOrigins ...string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		if !slices.Contains(origins, origin) {
+
+		if !originAllowed(origin, origins, patterns) {
 			origin = origins[0]
 		}
 
@@ -40,4 +50,25 @@ func CORS(allowedOrigins ...string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func originAllowed(origin string, origins []string, patterns []*regexp.Regexp) bool {
+	if origin == "" {
+		return false
+	}
+	if slices.Contains(origins, origin) {
+		return true
+	}
+	return slices.ContainsFunc(patterns, func(pattern *regexp.Regexp) bool {
+		return pattern.MatchString(origin)
+	})
+}
+
+
+func compileOriginPattern(pattern string) *regexp.Regexp {
+	parts := strings.Split(pattern, "*")
+	for i, part := range parts {
+		parts[i] = regexp.QuoteMeta(part)
+	}
+	return regexp.MustCompile("^" + strings.Join(parts, "[^/]*") + "$")
 }

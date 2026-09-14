@@ -43,6 +43,8 @@ type Config struct {
 	ParsingAPIKey     string
 	ParsingAPITimeout time.Duration
 	BalanceCurrency string
+
+	TelegramBotToken string
 }
 
 func Load() (*Config, error) {
@@ -73,6 +75,8 @@ func Load() (*Config, error) {
 		ParsingAPITimeout: GetDurationEnv("PARSING_API_TIMEOUT", defaultParsingTimeout),
 
 		BalanceCurrency: strings.ToUpper(GetEnv("BALANCE_CURRENCY", defaultBalanceCurrency)),
+
+		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 	}
 
 	cfg.AllowedOrigins = allowedOrigins(cfg.FrontendURL)

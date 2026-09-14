@@ -1,0 +1,18 @@
+info:
+  name: telegram-unlink
+  type: http
+  seq: 28
+
+http:
+  method: DELETE
+  url: '{{stage_url}}/profile/telegram'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

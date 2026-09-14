@@ -1,0 +1,32 @@
+info:
+  name: telegram-link
+  type: http
+  seq: 26
+
+http:
+  method: POST
+  url: '{{stage_url}}/profile/telegram'
+  auth: inherit
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "id": 123456789,
+        "first_name": "John",
+        "last_name": "Doe",
+        "username": "johndoe",
+        "photo_url": "https://t.me/i/userpic/320/johndoe.jpg",
+        "auth_date": 1730000000,
+        "hash": "put-telegram-widget-hash-here"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

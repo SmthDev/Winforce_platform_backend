@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8081/api/v1/auth/signup/credential
+  url: http://localhost:8080/api/v1/auth/signup/credential
   headers:
     - name: Content-Type
       value: application/json
@@ -14,17 +14,17 @@ http:
   body:
     type: json
     data: |-
-      // {
-      //   "email": "alex.zahreshchanka@gmail.com",
-      //   "password": "Alex.zahreshchanka21!"
-      // }
-
-
       {
-        "email":"leshenkov2007@gmail.com",
-        "password": "Sasha20062007!"
-
+        "email": "alex.zahreshchanka@gmail.com",
+        "password": "Alex.zahreshchanka21!"
       }
+
+
+      // {
+      //   "email":"leshenkov2007@gmail.com",
+      //   "password": "Sasha20062007!"
+
+      // }
   auth: inherit
 
 runtime:
@@ -32,10 +32,11 @@ runtime:
     - name: stage_url
       value: localhost:8081/api/v1
     - name: origin
-      value: http://192.168.100.184:5173
+      value: http://192.168.1.2:5173
 
 settings:
   encodeUrl: true
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+  forwardAuthorizationHeader: true

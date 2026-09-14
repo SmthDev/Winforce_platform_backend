@@ -25,6 +25,7 @@ import (
 	"platform/backend/internal/repository/postgres/avatar_repo"
 	"platform/backend/internal/repository/postgres/balance_repo"
 	"platform/backend/internal/repository/postgres/qr_repo"
+	"platform/backend/internal/repository/postgres/telegram_repo"
 	"platform/backend/internal/repository/postgres/user_repo"
 	"platform/backend/internal/service"
 )
@@ -59,6 +60,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 	avatarService := service.NewAvatar(avatar_repo.New(pool), minioClient, log)
 	qrService := service.NewQR(qr_repo.New(pool), minioClient, log)
 	balanceService := service.NewBalance(balance_repo.New(pool), parsingClient, minioClient, log, cfg.BalanceCurrency)
+	telegramService := service.NewTelegram(telegram_repo.New(pool), cfg.TelegramBotToken)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -69,6 +71,10 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		v1.PATCH("/profile", middleware.RequireAuth(authInstance), handlers.UpdateProfileName(profileService))
 		v1.POST("/profile/avatar", middleware.RequireAuth(authInstance), handlers.UploadAvatar(avatarService, avatarsBucket))
 		v1.GET("/qr", middleware.RequireAuth(authInstance), handlers.ListQRCodes(qrService))
+
+		v1.POST("/profile/telegram", middleware.RequireAuth(authInstance), handlers.LinkTelegram(telegramService))
+		v1.GET("/profile/telegram", middleware.RequireAuth(authInstance), handlers.GetTelegramLink(telegramService))
+		v1.DELETE("/profile/telegram", middleware.RequireAuth(authInstance), handlers.UnlinkTelegram(telegramService))
 
 		v1.GET("/balance", middleware.RequireAuth(authInstance), handlers.GetBalance(balanceService))
 		v1.GET("/balance/transactions", middleware.RequireAuth(authInstance), handlers.ListBalanceTransactions(balanceService))
@@ -182,6 +188,10 @@ func run() error {
 	parsingClient := parsing.New(cfg.ParsingAPIURL, cfg.ParsingAPIKey, cfg.ParsingAPITimeout)
 	if cfg.ParsingAPIURL == "" {
 		log.Warn("PARSING_API_URL is not set, receipt upload will return 503")
+	}
+
+	if cfg.TelegramBotToken == "" {
+		log.Warn("TELEGRAM_BOT_TOKEN is not set, telegram linking will return 503")
 	}
 
 	gin.SetMode(ginMode(cfg.Env))
