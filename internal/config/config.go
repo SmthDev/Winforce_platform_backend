@@ -10,22 +10,22 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-)
 
+	"platform/backend/internal/filelink"
+)
 
 const (
 	limenSecretLength = 32
-
 
 	defaultParsingTimeout  = 90 * time.Second
 	defaultBalanceCurrency = "BYN"
 )
 
 type Config struct {
-	Port        string
-	Env         string
-	ServiceName string
-	FrontendURL string
+	Port           string
+	Env            string
+	ServiceName    string
+	FrontendURL    string
 	AllowedOrigins []string
 	DatabaseURL    string
 	BaseURL        string
@@ -39,16 +39,18 @@ type Config struct {
 	MinioAccessKey string
 	MinioSecretKey string
 	MinioUseSSL    bool
+	FilesBaseURL      string
+	FileLinkSecret    string
 	ParsingAPIURL     string
 	ParsingAPIKey     string
 	ParsingAPITimeout time.Duration
-	BalanceCurrency string
+	BalanceCurrency   string
 
 	TelegramBotToken string
 }
 
 func Load() (*Config, error) {
-	if err:=LoadEnv(); err != nil {
+	if err := LoadEnv(); err != nil {
 		return nil, fmt.Errorf("load environment: %w", err)
 	}
 	port := GetEnv("PORT", "8080")
@@ -80,6 +82,11 @@ func Load() (*Config, error) {
 	}
 
 	cfg.AllowedOrigins = allowedOrigins(cfg.FrontendURL)
+	cfg.FilesBaseURL = strings.TrimRight(
+		GetEnv("FILES_BASE_URL", strings.TrimRight(cfg.BaseURL, "/")+filelink.DefaultPathPrefix),
+		"/",
+	)
+	cfg.FileLinkSecret = GetEnv("FILE_LINK_SECRET", cfg.LimenSecret)
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is not set")

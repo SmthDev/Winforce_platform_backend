@@ -18,6 +18,7 @@ type QRStorage interface {
 	Upload(ctx context.Context, bucket, objectName string, reader io.Reader, size int64, contentType string) error
 	Delete(ctx context.Context, bucket, objectName string) error
 	PublicURL(bucket, objectName string) string
+	NormalizeURL(link, bucket string) string
 }
 
 type QRService struct {
@@ -51,10 +52,13 @@ func (s *QRService) SaveQRCode(ctx context.Context, userID any, targetLink, buck
 	return qr, nil
 }
 
-func (s *QRService) ListQRCodes(ctx context.Context, userID any) ([]models.QRCode, error) {
+func (s *QRService) ListQRCodes(ctx context.Context, userID any, bucket string) ([]models.QRCode, error) {
 	codes, err := s.repo.ListQRCodes(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list qr codes: %w", err)
+	}
+	for i := range codes {
+		codes[i].QRLink = s.storage.NormalizeURL(codes[i].QRLink, bucket)
 	}
 	return codes, nil
 }

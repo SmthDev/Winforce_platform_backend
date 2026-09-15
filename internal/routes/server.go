@@ -17,6 +17,7 @@ import (
 
 	"platform/backend/internal/config"
 	"platform/backend/internal/db"
+	"platform/backend/internal/filelink"
 	"platform/backend/internal/handlers"
 	"platform/backend/internal/logger"
 	"platform/backend/internal/middleware"
@@ -40,7 +41,7 @@ const (
 	receiptsBucket = "receipts"
 )
 
-func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool, minioClient *miniorepo.Client, parsingClient *parsing.Client) *gin.Engine {
+func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, pool *pgxpool.Pool, minioClient *miniorepo.Client, links *filelink.Signer, parsingClient *parsing.Client) *gin.Engine {
 	r := gin.New()
 
 
@@ -61,16 +62,19 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 	qrService := service.NewQR(qr_repo.New(pool), minioClient, log)
 	balanceService := service.NewBalance(balance_repo.New(pool), parsingClient, minioClient, log, cfg.BalanceCurrency)
 	telegramService := service.NewTelegram(telegram_repo.New(pool), cfg.TelegramBotToken)
+	fileService := service.NewFile(minioClient, links, fileBuckets(), log)
 
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/health", handlers.Health)
+		v1.GET("/files/:bucket/*object", handlers.ServeFile(fileService))
+		v1.HEAD("/files/:bucket/*object", handlers.ServeFile(fileService))
 		v1.Any("/auth/*path", gin.WrapH(authInstance.Handler()))
 		v1.POST("/login", handlers.Login(authInstance))
 		v1.GET("/profile", middleware.RequireAuth(authInstance), handlers.Profile(profileService))
 		v1.PATCH("/profile", middleware.RequireAuth(authInstance), handlers.UpdateProfileName(profileService))
 		v1.POST("/profile/avatar", middleware.RequireAuth(authInstance), handlers.UploadAvatar(avatarService, avatarsBucket))
-		v1.GET("/qr", middleware.RequireAuth(authInstance), handlers.ListQRCodes(qrService))
+		v1.GET("/qr", middleware.RequireAuth(authInstance), handlers.ListQRCodes(qrService, qrCodesBucket))
 
 		v1.POST("/profile/telegram", middleware.RequireAuth(authInstance), handlers.LinkTelegram(telegramService))
 		v1.GET("/profile/telegram", middleware.RequireAuth(authInstance), handlers.GetTelegramLink(telegramService))
@@ -99,6 +103,14 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 	}
 
 	return r
+}
+
+func fileBuckets() map[string]service.FileAccess {
+	return map[string]service.FileAccess{
+		avatarsBucket:  service.AccessPublic,
+		qrCodesBucket:  service.AccessPublic,
+		receiptsBucket: service.AccessSigned,
+	}
 }
 
 func RunMigrate(args []string) {
@@ -169,7 +181,14 @@ func run() error {
 	}
 	defer authDB.Close()
 
-	minioClient, err := miniorepo.New(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
+	links := filelink.NewSigner(cfg.FilesBaseURL, []byte(cfg.FileLinkSecret))
+	minioClient, err := miniorepo.New(miniorepo.Options{
+		Endpoint:  cfg.MinioEndpoint,
+		AccessKey: cfg.MinioAccessKey,
+		SecretKey: cfg.MinioSecretKey,
+		UseSSL:    cfg.MinioUseSSL,
+		Links:     links,
+	})
 	if err != nil {
 		return fmt.Errorf("minio setup failed: %w", err)
 	}
@@ -183,7 +202,7 @@ func run() error {
 	if err := minioClient.EnsureBucket(ctx, receiptsBucket, false); err != nil {
 		return fmt.Errorf("minio bucket setup failed: %w", err)
 	}
-	log.Info("connected to minio")
+	log.Info("connected to minio", slog.String("files_base_url", cfg.FilesBaseURL))
 
 	parsingClient := parsing.New(cfg.ParsingAPIURL, cfg.ParsingAPIKey, cfg.ParsingAPITimeout)
 	if cfg.ParsingAPIURL == "" {
@@ -198,7 +217,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: NewRouter(cfg, log, authInstance, pool, minioClient, parsingClient),
+		Handler: NewRouter(cfg, log, authInstance, pool, minioClient, links, parsingClient),
 	}
 
 	serverErr := make(chan error, 1)

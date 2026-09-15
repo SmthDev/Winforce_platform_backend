@@ -60,7 +60,7 @@ type ReceiptParser interface {
 type ReceiptStorage interface {
 	Upload(ctx context.Context, bucket, objectName string, reader io.Reader, size int64, contentType string) error
 	Delete(ctx context.Context, bucket, objectName string) error
-	PresignedGetURL(ctx context.Context, bucket, objectName string, expiry time.Duration) (string, error)
+	SignedURL(bucket, objectName string, expiry time.Duration) (string, error)
 }
 
 type BalanceService struct {
@@ -151,7 +151,7 @@ func (s *BalanceService) CreditFromReceipt(ctx context.Context, userID any, buck
 		return models.Receipt{}, models.Balance{}, translateRepoError(err)
 	}
 
-	receipt.FileURL = s.receiptURL(ctx, bucket, receipt.FileObject)
+	receipt.FileURL = s.receiptURL(bucket, receipt.FileObject)
 	return receipt, balance, nil
 }
 
@@ -170,7 +170,7 @@ func (s *BalanceService) ListReceipts(ctx context.Context, userID any, bucket st
 	}
 
 	for i := range receipts {
-		receipts[i].FileURL = s.receiptURL(ctx, bucket, receipts[i].FileObject)
+		receipts[i].FileURL = s.receiptURL(bucket, receipts[i].FileObject)
 	}
 	return receipts, nil
 }
@@ -211,7 +211,7 @@ func (s *BalanceService) ListAllReceipts(ctx context.Context, status, bucket str
 	}
 
 	for i := range receipts {
-		receipts[i].FileURL = s.receiptURL(ctx, bucket, receipts[i].FileObject)
+		receipts[i].FileURL = s.receiptURL(bucket, receipts[i].FileObject)
 	}
 	return receipts, total, nil
 }
@@ -241,14 +241,14 @@ func (s *BalanceService) AdjustBalance(ctx context.Context, userID any, amountMi
 	return balance, nil
 }
 
-func (s *BalanceService) receiptURL(ctx context.Context, bucket, objectName string) string {
+func (s *BalanceService) receiptURL(bucket, objectName string) string {
 	if objectName == "" {
 		return ""
 	}
 
-	url, err := s.storage.PresignedGetURL(ctx, bucket, objectName, receiptURLTTL)
+	url, err := s.storage.SignedURL(bucket, objectName, receiptURLTTL)
 	if err != nil {
-		s.log.Error("presign receipt object failed",
+		s.log.Error("sign receipt link failed",
 			slog.Any("error", err),
 			slog.String("object_name", objectName),
 		)

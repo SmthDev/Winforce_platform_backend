@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/url"
-	"strings"
+
+	"platform/backend/internal/filelink"
 )
 
 type AvatarRepository interface {
@@ -46,7 +46,7 @@ func (s *AvatarService) UploadAvatar(ctx context.Context, userID any, bucket, ob
 	}
 
 	if hadOld {
-		if oldObjectName, ok := objectNameFromLink(oldLink, bucket); ok {
+		if oldObjectName, ok := filelink.ObjectName(oldLink, bucket); ok {
 			if err := s.storage.Delete(ctx, bucket, oldObjectName); err != nil {
 				s.log.Error("delete previous avatar failed", slog.Any("error", err), slog.Any("user_id", userID))
 			}
@@ -54,18 +54,4 @@ func (s *AvatarService) UploadAvatar(ctx context.Context, userID any, bucket, ob
 	}
 
 	return link, nil
-}
-
-func objectNameFromLink(link, bucket string) (string, bool) {
-	u, err := url.Parse(link)
-	if err != nil {
-		return "", false
-	}
-
-	prefix := "/" + bucket + "/"
-	if !strings.HasPrefix(u.Path, prefix) {
-		return "", false
-	}
-
-	return strings.TrimPrefix(u.Path, prefix), true
 }
