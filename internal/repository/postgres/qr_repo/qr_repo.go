@@ -33,14 +33,12 @@ func (r *Repo) CreateQRCode(ctx context.Context, userID any, targetLink, qrLink 
 	return qr, nil
 }
 
-func (r *Repo) ListQRCodes(ctx context.Context, userID any) ([]models.QRCode, error) {
+func (r *Repo) ListQRCodes(ctx context.Context) ([]models.QRCode, error) {
 	rows, err := r.pool.Query(
 		ctx,
 		`SELECT id, user_id, target_link, qr_link, add_date_time
 		 FROM qr_codes
-		 WHERE user_id = $1
 		 ORDER BY add_date_time DESC, id DESC`,
-		userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list qr codes: %w", err)

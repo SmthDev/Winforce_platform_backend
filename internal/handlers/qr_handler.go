@@ -31,7 +31,7 @@ var allowedQRCodeTypes = map[string]bool{
 
 type QRService interface {
 	SaveQRCode(ctx context.Context, userID any, targetLink, bucket, objectName string, reader io.Reader, size int64, contentType string) (models.QRCode, error)
-	ListQRCodes(ctx context.Context, userID any, bucket string) ([]models.QRCode, error)
+	ListQRCodes(ctx context.Context, bucket string) ([]models.QRCode, error)
 }
 
 func UploadQRCode(qrService QRService, bucket string) gin.HandlerFunc {
@@ -92,7 +92,7 @@ func ListQRCodes(qrService QRService, bucket string) gin.HandlerFunc {
 			return
 		}
 
-		codes, err := qrService.ListQRCodes(c.Request.Context(), user.ID, bucket)
+		codes, err := qrService.ListQRCodes(c.Request.Context(), bucket)
 		if err != nil {
 			middleware.Logger(c).Error("list qr codes failed", slog.Any("error", err), slog.Any("user_id", user.ID))
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load qr codes"})

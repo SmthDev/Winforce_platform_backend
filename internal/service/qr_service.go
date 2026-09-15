@@ -11,7 +11,7 @@ import (
 
 type QRRepository interface {
 	CreateQRCode(ctx context.Context, userID any, targetLink, qrLink string) (models.QRCode, error)
-	ListQRCodes(ctx context.Context, userID any) ([]models.QRCode, error)
+	ListQRCodes(ctx context.Context) ([]models.QRCode, error)
 }
 
 type QRStorage interface {
@@ -52,8 +52,8 @@ func (s *QRService) SaveQRCode(ctx context.Context, userID any, targetLink, buck
 	return qr, nil
 }
 
-func (s *QRService) ListQRCodes(ctx context.Context, userID any, bucket string) ([]models.QRCode, error) {
-	codes, err := s.repo.ListQRCodes(ctx, userID)
+func (s *QRService) ListQRCodes(ctx context.Context, bucket string) ([]models.QRCode, error) {
+	codes, err := s.repo.ListQRCodes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list qr codes: %w", err)
 	}
