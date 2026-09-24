@@ -25,6 +25,7 @@ type BalanceTransaction struct {
 	Currency    string    `json:"currency"`
 	Kind        string    `json:"kind"`
 	ReceiptID   *int64    `json:"receipt_id,omitempty"`
+	GameID      *int64    `json:"game_id,omitempty"`
 	Comment     string    `json:"comment,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
@@ -42,4 +43,19 @@ func FormatMinor(amountMinor int64) string {
 
 func MinorFromFloat(amount float64) int64 {
 	return int64(math.Round(amount * minorUnits))
+}
+
+type GameChargeShare struct {
+	UserID      int64   `json:"user_id"`
+	Amount      string  `json:"amount"`
+	AmountMinor int64   `json:"amount_minor"`
+	Balance     Balance `json:"balance"`
+}
+
+type GameCharge struct {
+	Game        Game              `json:"game"`
+	Amount      string            `json:"amount"`
+	AmountMinor int64             `json:"amount_minor"`
+	Currency    string            `json:"currency"`
+	Charges     []GameChargeShare `json:"charges"`
 }

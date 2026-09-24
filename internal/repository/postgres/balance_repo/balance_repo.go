@@ -24,13 +24,20 @@ const (
 )
 
 var (
-
-	ErrDuplicateFile = errors.New("receipt file already uploaded")
-	ErrDuplicateCheckNumber = errors.New("receipt check number already used")
-	ErrCurrencyMismatch = errors.New("receipt currency does not match balance currency")
-	ErrReceiptNotFound = errors.New("receipt not found")
+	ErrDuplicateFile          = errors.New("receipt file already uploaded")
+	ErrDuplicateCheckNumber   = errors.New("receipt check number already used")
+	ErrCurrencyMismatch       = errors.New("receipt currency does not match balance currency")
+	ErrReceiptNotFound        = errors.New("receipt not found")
 	ErrReceiptAlreadyReversed = errors.New("receipt already reversed")
+	ErrGameSettingsMissing    = errors.New("game settings not configured")
+	ErrGameNotFound           = errors.New("game not found")
+	ErrGameAlreadyCharged     = errors.New("game already charged")
 )
+
+type GameShare struct {
+	UserID      int64
+	AmountMinor int64
+}
 
 type Repo struct {
 	pool *pgxpool.Pool
@@ -87,6 +94,36 @@ func (r *Repo) UserExists(ctx context.Context, userID any) (bool, error) {
 	return exists, nil
 }
 
+func (r *Repo) MissingUsers(ctx context.Context, userIDs []int64) ([]int64, error) {
+	rows, err := r.pool.Query(
+		ctx,
+		`SELECT req.id FROM unnest($1::bigint[]) AS req(id)
+		 WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = req.id)
+		 ORDER BY req.id`,
+		userIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("check users exist: %w", err)
+	}
+	missing, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	if err != nil {
+		return nil, fmt.Errorf("check users exist: %w", err)
+	}
+	return missing, nil
+}
+
+func (r *Repo) GameChargeAmount(ctx context.Context) (int64, error) {
+	var amountMinor int64
+	err := r.pool.QueryRow(ctx, `SELECT charge_amount_minor FROM game_settings WHERE id = 1`).Scan(&amountMinor)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrGameSettingsMissing
+	}
+	if err != nil {
+		return 0, fmt.Errorf("get game charge amount: %w", err)
+	}
+	return amountMinor, nil
+}
+
 func (r *Repo) ReceiptExistsByFileHash(ctx context.Context, fileHash string) (bool, error) {
 	var exists bool
 	err := r.pool.QueryRow(
@@ -99,7 +136,6 @@ func (r *Repo) ReceiptExistsByFileHash(ctx context.Context, fileHash string) (bo
 	}
 	return exists, nil
 }
-
 
 func (r *Repo) CreditReceipt(ctx context.Context, userID any, in ReceiptInsert) (models.Receipt, models.Balance, error) {
 	tx, err := r.pool.Begin(ctx)
@@ -229,10 +265,111 @@ func (r *Repo) AdjustBalance(ctx context.Context, userID any, amountMinor int64,
 	return balance, nil
 }
 
+func (r *Repo) ChargeGame(ctx context.Context, gameID int64, shares []GameShare, currency string) (models.Game, []models.Balance, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return models.Game{}, nil, fmt.Errorf("charge game: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var (
+		game     models.Game
+		playedOn time.Time
+	)
+	err = tx.QueryRow(
+		ctx,
+		`SELECT id, played_on, opponent, charged_at, created_at FROM games WHERE id = $1 FOR UPDATE`,
+		gameID,
+	).Scan(&game.ID, &playedOn, &game.Opponent, &game.ChargedAt, &game.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Game{}, nil, ErrGameNotFound
+	}
+	if err != nil {
+		return models.Game{}, nil, fmt.Errorf("lock game: %w", err)
+	}
+	if game.ChargedAt != nil {
+		return models.Game{}, nil, ErrGameAlreadyCharged
+	}
+	game.PlayedOn = playedOn.Format(models.GameDateLayout)
+	comment := fmt.Sprintf("Игра %s против %s", game.PlayedOn, game.Opponent)
+
+	userIDs := make([]int64, len(shares))
+	for i, share := range shares {
+		userIDs[i] = share.UserID
+	}
+
+	rows, err := tx.Query(
+		ctx,
+		`SELECT user_id, currency FROM balances
+		 WHERE user_id = ANY($1)
+		 ORDER BY user_id
+		 FOR UPDATE`,
+		userIDs,
+	)
+	if err != nil {
+		return models.Game{}, nil, fmt.Errorf("lock balances: %w", err)
+	}
+
+	currencies := make(map[int64]string, len(shares))
+	for rows.Next() {
+		var (
+			userID       int64
+			userCurrency string
+		)
+		if err := rows.Scan(&userID, &userCurrency); err != nil {
+			rows.Close()
+			return models.Game{}, nil, fmt.Errorf("lock balances: %w", err)
+		}
+		currencies[userID] = userCurrency
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return models.Game{}, nil, fmt.Errorf("lock balances: %w", err)
+	}
+
+	for _, share := range shares {
+		if userCurrency, ok := currencies[share.UserID]; ok && userCurrency != currency {
+			return models.Game{}, nil, fmt.Errorf("%w: user %d balance is in %s, charge is in %s",
+				ErrCurrencyMismatch, share.UserID, userCurrency, currency)
+		}
+	}
+
+	balances := make([]models.Balance, 0, len(shares))
+	for _, share := range shares {
+		if _, err := tx.Exec(
+			ctx,
+			`INSERT INTO balance_transactions (user_id, amount_minor, currency, kind, game_id, comment)
+			 VALUES ($1, $2, $3, 'game_charge', $4, $5)`,
+			share.UserID, -share.AmountMinor, currency, gameID, comment,
+		); err != nil {
+			return models.Game{}, nil, fmt.Errorf("charge game ledger: %w", err)
+		}
+
+		balance, err := applyBalanceDelta(ctx, tx, share.UserID, -share.AmountMinor, currency)
+		if err != nil {
+			return models.Game{}, nil, err
+		}
+		balances = append(balances, balance)
+	}
+
+	if err := tx.QueryRow(
+		ctx,
+		`UPDATE games SET charged_at = now() WHERE id = $1 RETURNING charged_at`,
+		gameID,
+	).Scan(&game.ChargedAt); err != nil {
+		return models.Game{}, nil, fmt.Errorf("mark game charged: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return models.Game{}, nil, fmt.Errorf("charge game: %w", err)
+	}
+	return game, balances, nil
+}
+
 func (r *Repo) ListTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error) {
 	rows, err := r.pool.Query(
 		ctx,
-		`SELECT id, user_id, amount_minor, currency, kind, receipt_id, comment, created_at
+		`SELECT id, user_id, amount_minor, currency, kind, receipt_id, game_id, comment, created_at
 		 FROM balance_transactions
 		 WHERE user_id = $1
 		 ORDER BY created_at DESC, id DESC
@@ -249,7 +386,7 @@ func (r *Repo) ListTransactions(ctx context.Context, userID any, limit, offset i
 			comment *string
 		)
 		if err := row.Scan(&tr.ID, &tr.UserID, &tr.AmountMinor, &tr.Currency, &tr.Kind,
-			&tr.ReceiptID, &comment, &tr.CreatedAt); err != nil {
+			&tr.ReceiptID, &tr.GameID, &comment, &tr.CreatedAt); err != nil {
 			return models.BalanceTransaction{}, err
 		}
 		if comment != nil {

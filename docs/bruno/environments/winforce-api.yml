@@ -7,5 +7,8 @@ variables:
     value: http://localhost:8080/api/v1
     description: ""
   - name: origin
-    value: http://172.17.101.251:5173/
+    value: https://api.platform.winforce.tech
+    description: ""
+  - name: host
+    value: https://api.platform.winforce.tech/api/v1
     description: ""

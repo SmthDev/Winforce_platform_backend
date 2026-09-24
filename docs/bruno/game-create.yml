@@ -1,0 +1,25 @@
+info:
+  name: game-create
+  type: http
+  seq: 29
+
+http:
+  method: POST
+  url: '{{stage_url}}/games'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "played_on": "2026-09-30",
+        "opponent": "Динамо"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

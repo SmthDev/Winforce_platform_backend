@@ -25,6 +25,7 @@ import (
 	"platform/backend/internal/repository/parsing"
 	"platform/backend/internal/repository/postgres/avatar_repo"
 	"platform/backend/internal/repository/postgres/balance_repo"
+	"platform/backend/internal/repository/postgres/game_repo"
 	"platform/backend/internal/repository/postgres/qr_repo"
 	"platform/backend/internal/repository/postgres/telegram_repo"
 	"platform/backend/internal/repository/postgres/user_repo"
@@ -61,6 +62,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 	avatarService := service.NewAvatar(avatar_repo.New(pool), minioClient, log)
 	qrService := service.NewQR(qr_repo.New(pool), minioClient, log)
 	balanceService := service.NewBalance(balance_repo.New(pool), parsingClient, minioClient, log, cfg.BalanceCurrency)
+	gameService := service.NewGame(game_repo.New(pool))
 	telegramService := service.NewTelegram(telegram_repo.New(pool), cfg.TelegramBotToken)
 	fileService := service.NewFile(minioClient, links, fileBuckets(), log)
 
@@ -91,9 +93,16 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 			//qr.GET("", handlers.ListQRCodes(qrService))
 		}
 
+		gamesAdmin := v1.Group("/games", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
+		{
+			gamesAdmin.POST("", handlers.CreateGame(gameService))
+			gamesAdmin.GET("", handlers.ListGames(gameService))
+		}
+
 		balanceAdmin := v1.Group("/balance", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
 		{
 			balanceAdmin.POST("/adjust", handlers.AdjustBalance(balanceService))
+			balanceAdmin.POST("/game-charge", handlers.ChargeGame(balanceService))
 			balanceAdmin.POST("/receipts/:id/reject", handlers.RejectReceipt(balanceService))
 			balanceAdmin.GET("/receipts/all", handlers.ListAllReceipts(balanceService, receiptsBucket))
 			balanceAdmin.GET("/users/:user_id", handlers.GetUserBalanceByID(balanceService))

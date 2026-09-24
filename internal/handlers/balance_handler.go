@@ -34,6 +34,7 @@ type BalanceService interface {
 	ListReceipts(ctx context.Context, userID any, bucket string, limit, offset int) ([]models.Receipt, error)
 	RejectReceipt(ctx context.Context, receiptID int64, comment string) (models.Balance, error)
 	AdjustBalance(ctx context.Context, userID any, amountMinor int64, currency, comment string) (models.Balance, error)
+	ChargeGame(ctx context.Context, gameID int64, userIDs []int64) (models.GameCharge, error)
 
 	ListAllReceipts(ctx context.Context, status, bucket string, limit, offset int) ([]models.Receipt, int64, error)
 	GetUserBalance(ctx context.Context, userID any) (models.Balance, error)
@@ -256,6 +257,46 @@ func AdjustBalance(balanceService BalanceService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"balance": balance})
+	}
+}
+
+type chargeGameRequest struct {
+	GameID  int64   `json:"game_id"`
+	UserIDs []int64 `json:"user_ids"`
+}
+
+func ChargeGame(balanceService BalanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req chargeGameRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "game_id and user_ids are required"})
+			return
+		}
+
+		charge, err := balanceService.ChargeGame(c.Request.Context(), req.GameID, req.UserIDs)
+		if err != nil {
+			var notFoundErr *service.UsersNotFoundError
+			switch {
+			case errors.Is(err, service.ErrInvalidGameCharge):
+				c.JSON(http.StatusBadRequest, gin.H{
+					"message": "game_id must be positive, user_ids must be non-empty positive ids and not exceed the game price in minor units",
+				})
+			case errors.Is(err, service.ErrGameNotFound):
+				c.JSON(http.StatusNotFound, gin.H{"message": "game not found"})
+			case errors.Is(err, service.ErrGameAlreadyCharged):
+				c.JSON(http.StatusConflict, gin.H{"message": "game already charged"})
+			case errors.As(err, &notFoundErr):
+				c.JSON(http.StatusNotFound, gin.H{"message": "users not found", "user_ids": notFoundErr.UserIDs})
+			case errors.Is(err, service.ErrBalanceCurrencyMismatch):
+				c.JSON(http.StatusUnprocessableEntity, gin.H{"message": "currency does not match balance currency"})
+			default:
+				middleware.Logger(c).Error("charge game failed", slog.Any("error", err), slog.Int64("game_id", req.GameID), slog.Any("user_ids", req.UserIDs))
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to charge game"})
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"charge": charge})
 	}
 }
 

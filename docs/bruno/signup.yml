@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8080/api/v1/auth/signup/credential
+  url: "{{host}}/auth/signup/credential"
   headers:
     - name: Content-Type
       value: application/json
@@ -15,8 +15,8 @@ http:
     type: json
     data: |-
       {
-        "email": "alex.zahreshchanka@gmail.com",
-        "password": "Alex.zahreshchanka21!"
+        "email": "ksksn@gmail.com",
+        "password": "Aleksandra81!"
       }
 
 
@@ -32,7 +32,7 @@ runtime:
     - name: stage_url
       value: localhost:8081/api/v1
     - name: origin
-      value: http://192.168.1.2:5173
+      value: https://api.platform.winforce.tech
 
 settings:
   encodeUrl: true

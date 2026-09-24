@@ -37,17 +37,36 @@ var (
 	ErrReceiptAlreadyReversed = errors.New("receipt already reversed")
 	ErrUserNotFound = errors.New("user not found")
 	ErrInvalidReceiptStatus = errors.New("unknown receipt status")
+	ErrInvalidGameCharge = errors.New("invalid game charge")
+	ErrGameNotFound = errors.New("game not found")
+	ErrGameAlreadyCharged = errors.New("game already charged")
 )
+
+type UsersNotFoundError struct {
+	UserIDs []int64
+}
+
+func (e *UsersNotFoundError) Error() string {
+	return fmt.Sprintf("users not found: %v", e.UserIDs)
+}
+
+func (e *UsersNotFoundError) Unwrap() error {
+	return ErrUserNotFound
+}
+
 
 var ReceiptStatuses = []string{"credited", "rejected"}
 
 type BalanceRepository interface {
 	GetBalance(ctx context.Context, userID any) (balance models.Balance, found bool, err error)
 	UserExists(ctx context.Context, userID any) (bool, error)
+	MissingUsers(ctx context.Context, userIDs []int64) ([]int64, error)
+	GameChargeAmount(ctx context.Context) (int64, error)
 	ReceiptExistsByFileHash(ctx context.Context, fileHash string) (bool, error)
 	CreditReceipt(ctx context.Context, userID any, in balance_repo.ReceiptInsert) (models.Receipt, models.Balance, error)
 	ReverseReceipt(ctx context.Context, receiptID int64, comment string) (models.Balance, error)
 	AdjustBalance(ctx context.Context, userID any, amountMinor int64, currency, comment string) (models.Balance, error)
+	ChargeGame(ctx context.Context, gameID int64, shares []balance_repo.GameShare, currency string) (models.Game, []models.Balance, error)
 	ListTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error)
 	ListReceipts(ctx context.Context, userID any, limit, offset int) ([]models.Receipt, error)
 	ListAllReceipts(ctx context.Context, status *string, limit, offset int) ([]models.Receipt, int64, error)
@@ -241,6 +260,74 @@ func (s *BalanceService) AdjustBalance(ctx context.Context, userID any, amountMi
 	return balance, nil
 }
 
+// ChargeGame делит стоимость игры (из game_settings) поровну между пользователями
+// и списывает доли с их балансов в дефолтной валюте (баланс может уйти в минус).
+// Игру можно списать только один раз. Остаток от деления (в минорных единицах)
+// распределяется по одной копейке на первых пользователей в порядке возрастания id.
+func (s *BalanceService) ChargeGame(ctx context.Context, gameID int64, userIDs []int64) (models.GameCharge, error) {
+	ids := slices.Clone(userIDs)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+
+	if gameID <= 0 {
+		return models.GameCharge{}, fmt.Errorf("%w: game_id must be positive", ErrInvalidGameCharge)
+	}
+	if len(ids) == 0 || ids[0] <= 0 {
+		return models.GameCharge{}, fmt.Errorf("%w: need at least one positive user id", ErrInvalidGameCharge)
+	}
+
+	amountMinor, err := s.repo.GameChargeAmount(ctx)
+	if err != nil {
+		return models.GameCharge{}, err
+	}
+	if amountMinor < int64(len(ids)) {
+		return models.GameCharge{}, fmt.Errorf("%w: amount %d is less than number of users %d",
+			ErrInvalidGameCharge, amountMinor, len(ids))
+	}
+
+	missing, err := s.repo.MissingUsers(ctx, ids)
+	if err != nil {
+		return models.GameCharge{}, err
+	}
+	if len(missing) > 0 {
+		return models.GameCharge{}, &UsersNotFoundError{UserIDs: missing}
+	}
+
+	base := amountMinor / int64(len(ids))
+	remainder := amountMinor % int64(len(ids))
+	shares := make([]balance_repo.GameShare, len(ids))
+	for i, id := range ids {
+		share := base
+		if int64(i) < remainder {
+			share++
+		}
+		shares[i] = balance_repo.GameShare{UserID: id, AmountMinor: share}
+	}
+
+	game, balances, err := s.repo.ChargeGame(ctx, gameID, shares, s.defaultCurrency)
+	if err != nil {
+		return models.GameCharge{}, translateRepoError(err)
+	}
+
+	charges := make([]models.GameChargeShare, len(shares))
+	for i, share := range shares {
+		charges[i] = models.GameChargeShare{
+			UserID:      share.UserID,
+			Amount:      models.FormatMinor(share.AmountMinor),
+			AmountMinor: share.AmountMinor,
+			Balance:     balances[i],
+		}
+	}
+
+	return models.GameCharge{
+		Game:        game,
+		Amount:      models.FormatMinor(amountMinor),
+		AmountMinor: amountMinor,
+		Currency:    s.defaultCurrency,
+		Charges:     charges,
+	}, nil
+}
+
 func (s *BalanceService) receiptURL(bucket, objectName string) string {
 	if objectName == "" {
 		return ""
@@ -291,6 +378,10 @@ func translateRepoError(err error) error {
 		return fmt.Errorf("%w: %v", ErrReceiptNotFound, err)
 	case errors.Is(err, balance_repo.ErrReceiptAlreadyReversed):
 		return fmt.Errorf("%w: %v", ErrReceiptAlreadyReversed, err)
+	case errors.Is(err, balance_repo.ErrGameNotFound):
+		return fmt.Errorf("%w: %v", ErrGameNotFound, err)
+	case errors.Is(err, balance_repo.ErrGameAlreadyCharged):
+		return fmt.Errorf("%w: %v", ErrGameAlreadyCharged, err)
 	default:
 		return err
 	}

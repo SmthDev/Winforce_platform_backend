@@ -5,14 +5,15 @@ info:
 
 http:
   method: GET
-  url: '{{stage_url}}/auth/me'
-  auth: inherit
+  url: "{{host}}/auth/me"
   headers:
     - name: Origin
-      value: '{{origin}}'
+      value: "{{origin}}"
+  auth: inherit
 
 settings:
   encodeUrl: true
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+  forwardAuthorizationHeader: true

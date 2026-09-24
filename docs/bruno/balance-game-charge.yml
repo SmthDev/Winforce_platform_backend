@@ -1,0 +1,25 @@
+info:
+  name: balance-game-charge
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: '{{stage_url}}/balance/game-charge'
+  auth: inherit
+  headers:
+    - name: Origin
+      value: '{{origin}}'
+  body:
+    type: json
+    data: |-
+      {
+        "game_id": 1,
+        "user_ids": [1, 2, 3]
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
