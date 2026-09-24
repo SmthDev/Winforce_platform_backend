@@ -8,6 +8,7 @@ import (
 type UserRepository interface {
 	UpdateName(ctx context.Context, userID any, firstName, lastName string) error
 	GetUserProfile(ctx context.Context, userID any) (models.Profile, error)
+	ListUsers(ctx context.Context) ([]models.Profile, error)
 }
 
 type ProfileService struct {
@@ -24,4 +25,8 @@ func (s *ProfileService) UpdateName(ctx context.Context, userID any, firstName, 
 
 func (s *ProfileService) GetUserProfile(ctx context.Context, userID any) (models.Profile, error) {
 	return s.userRepo.GetUserProfile(ctx, userID)
+}
+
+func (s *ProfileService) ListUsers(ctx context.Context) ([]models.Profile, error) {
+	return s.userRepo.ListUsers(ctx)
 }

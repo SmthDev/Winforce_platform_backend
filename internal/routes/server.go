@@ -93,6 +93,8 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 			//qr.GET("", handlers.ListQRCodes(qrService))
 		}
 
+		v1.GET("/users", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService), handlers.ListUsers(profileService))
+
 		gamesAdmin := v1.Group("/games", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))
 		{
 			gamesAdmin.POST("", handlers.CreateGame(gameService))

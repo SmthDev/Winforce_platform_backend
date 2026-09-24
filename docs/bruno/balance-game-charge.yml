@@ -5,21 +5,24 @@ info:
 
 http:
   method: POST
-  url: '{{stage_url}}/balance/game-charge'
-  auth: inherit
+  url: "{{host}}/balance/game-charge"
   headers:
     - name: Origin
-      value: '{{origin}}'
+      value: "{{origin}}"
   body:
     type: json
     data: |-
       {
-        "game_id": 1,
-        "user_ids": [1, 2, 3]
+        "user_ids": [1, 2, 3],
+        "amount_minor": 10000,
+        "currency": "BYN",
+        "comment": "test_game"
       }
+  auth: inherit
 
 settings:
   encodeUrl: true
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+  forwardAuthorizationHeader: true

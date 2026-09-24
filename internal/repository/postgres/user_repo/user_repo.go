@@ -74,3 +74,33 @@ func (r *Repo) GetUserProfile(ctx context.Context, userID any) (models.Profile, 
 	}
 	return profile, nil
 }	
+func (r *Repo) ListUsers(ctx context.Context) ([]models.Profile, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id, email, first_name, last_name FROM users ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+
+	users, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.Profile, error) {
+		var (
+			id        int64
+			profile   models.Profile
+			firstName *string
+			lastName  *string
+		)
+		if err := row.Scan(&id, &profile.Email, &firstName, &lastName); err != nil {
+			return models.Profile{}, err
+		}
+		profile.ID = strconv.FormatInt(id, 10)
+		if firstName != nil {
+			profile.FirstName = *firstName
+		}
+		if lastName != nil {
+			profile.LastName = *lastName
+		}
+		return profile, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	return users, nil
+}
