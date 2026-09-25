@@ -32,6 +32,7 @@ type BalanceService interface {
 	CreditFromReceipt(ctx context.Context, userID any, bucket, fileName, contentType string, data []byte) (models.Receipt, models.Balance, error)
 	ListTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error)
 	ListReceipts(ctx context.Context, userID any, bucket string, limit, offset int) ([]models.Receipt, error)
+	ListGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error)
 	RejectReceipt(ctx context.Context, receiptID int64, comment string) (models.Balance, error)
 	AdjustBalance(ctx context.Context, userID any, amountMinor int64, currency, comment string) (models.Balance, error)
 	ChargeGame(ctx context.Context, gameID int64, userIDs []int64) (models.GameCharge, error)
@@ -40,6 +41,7 @@ type BalanceService interface {
 	GetUserBalance(ctx context.Context, userID any) (models.Balance, error)
 	ListUserTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error)
 	ListUserReceipts(ctx context.Context, userID any, bucket string, limit, offset int) ([]models.Receipt, error)
+	ListUserGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error)
 }
 
 func GetBalance(balanceService BalanceService) gin.HandlerFunc {
@@ -79,6 +81,27 @@ func ListBalanceTransactions(balanceService BalanceService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"transactions": transactions})
+	}
+}
+
+func ListGamePayments(balanceService BalanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := middleware.CurrentUser(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		limit, offset := paginationParams(c)
+
+		payments, err := balanceService.ListGamePayments(c.Request.Context(), user.ID, limit, offset)
+		if err != nil {
+			middleware.Logger(c).Error("list game payments failed", slog.Any("error", err), slog.Any("user_id", user.ID))
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load game payments"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"payments": payments})
 	}
 }
 
@@ -224,6 +247,24 @@ func ListUserReceipts(balanceService BalanceService, bucket string) gin.HandlerF
 		}
 
 		c.JSON(http.StatusOK, gin.H{"receipts": receipts})
+	}
+}
+
+func ListUserGamePayments(balanceService BalanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, ok := pathUserID(c)
+		if !ok {
+			return
+		}
+		limit, offset := paginationParams(c)
+
+		payments, err := balanceService.ListUserGamePayments(c.Request.Context(), userID, limit, offset)
+		if err != nil {
+			writeAdminUserError(c, err, "list user game payments failed", "failed to load game payments", userID)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"payments": payments})
 	}
 }
 

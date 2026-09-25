@@ -401,6 +401,54 @@ func (r *Repo) ListTransactions(ctx context.Context, userID any, limit, offset i
 	return transactions, nil
 }
 
+
+func (r *Repo) ListGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error) {
+	rows, err := r.pool.Query(
+		ctx,
+		`SELECT bt.id, -bt.amount_minor, bt.currency, bt.created_at,
+			g.id, g.played_on, g.opponent, g.charged_at, g.created_at
+		 FROM balance_transactions bt
+		 LEFT JOIN games g ON g.id = bt.game_id
+		 WHERE bt.user_id = $1 AND bt.kind = 'game_charge'
+		 ORDER BY bt.created_at DESC, bt.id DESC
+		 LIMIT $2 OFFSET $3`,
+		userID, limit, offset,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list game payments: %w", err)
+	}
+
+	payments, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.GamePayment, error) {
+		var (
+			p             models.GamePayment
+			gameID        *int64
+			playedOn      *time.Time
+			opponent      *string
+			chargedAt     *time.Time
+			gameCreatedAt *time.Time
+		)
+		if err := row.Scan(&p.TransactionID, &p.AmountMinor, &p.Currency, &p.CreatedAt,
+			&gameID, &playedOn, &opponent, &chargedAt, &gameCreatedAt); err != nil {
+			return models.GamePayment{}, err
+		}
+		if gameID != nil {
+			p.Game = &models.Game{
+				ID:        *gameID,
+				PlayedOn:  playedOn.Format(models.GameDateLayout),
+				Opponent:  *opponent,
+				ChargedAt: chargedAt,
+				CreatedAt: *gameCreatedAt,
+			}
+		}
+		p.Amount = models.FormatMinor(p.AmountMinor)
+		return p, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list game payments: %w", err)
+	}
+	return payments, nil
+}
+
 func (r *Repo) ListReceipts(ctx context.Context, userID any, limit, offset int) ([]models.Receipt, error) {
 	rows, err := r.pool.Query(
 		ctx,

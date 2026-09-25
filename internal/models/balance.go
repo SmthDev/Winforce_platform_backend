@@ -59,3 +59,12 @@ type GameCharge struct {
 	Currency    string            `json:"currency"`
 	Charges     []GameChargeShare `json:"charges"`
 }
+
+type GamePayment struct {
+	TransactionID int64     `json:"transaction_id"`
+	Game          *Game     `json:"game,omitempty"`
+	Amount        string    `json:"amount"`
+	AmountMinor   int64     `json:"amount_minor"`
+	Currency      string    `json:"currency"`
+	CreatedAt     time.Time `json:"created_at"`
+}

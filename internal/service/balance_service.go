@@ -69,6 +69,7 @@ type BalanceRepository interface {
 	ChargeGame(ctx context.Context, gameID int64, shares []balance_repo.GameShare, currency string) (models.Game, []models.Balance, error)
 	ListTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error)
 	ListReceipts(ctx context.Context, userID any, limit, offset int) ([]models.Receipt, error)
+	ListGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error)
 	ListAllReceipts(ctx context.Context, status *string, limit, offset int) ([]models.Receipt, int64, error)
 }
 
@@ -213,6 +214,21 @@ func (s *BalanceService) ListUserReceipts(ctx context.Context, userID any, bucke
 		return nil, err
 	}
 	return s.ListReceipts(ctx, userID, bucket, limit, offset)
+}
+
+func (s *BalanceService) ListGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error) {
+	payments, err := s.repo.ListGamePayments(ctx, userID, clampLimit(limit), clampOffset(offset))
+	if err != nil {
+		return nil, fmt.Errorf("load game payments: %w", err)
+	}
+	return payments, nil
+}
+
+func (s *BalanceService) ListUserGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error) {
+	if err := s.requireUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	return s.ListGamePayments(ctx, userID, limit, offset)
 }
 
 func (s *BalanceService) ListAllReceipts(ctx context.Context, status, bucket string, limit, offset int) ([]models.Receipt, int64, error) {

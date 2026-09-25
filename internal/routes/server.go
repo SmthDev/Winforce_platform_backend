@@ -84,6 +84,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 
 		v1.GET("/balance", middleware.RequireAuth(authInstance), handlers.GetBalance(balanceService))
 		v1.GET("/balance/transactions", middleware.RequireAuth(authInstance), handlers.ListBalanceTransactions(balanceService))
+		v1.GET("/balance/game-charges", middleware.RequireAuth(authInstance), handlers.ListGamePayments(balanceService))
 		v1.GET("/balance/receipts", middleware.RequireAuth(authInstance), handlers.ListReceipts(balanceService, receiptsBucket))
 		v1.POST("/balance/receipts", middleware.RequireAuth(authInstance), handlers.UploadReceipt(balanceService, receiptsBucket))
 
@@ -110,6 +111,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 			balanceAdmin.GET("/users/:user_id", handlers.GetUserBalanceByID(balanceService))
 			balanceAdmin.GET("/users/:user_id/transactions", handlers.ListUserBalanceTransactions(balanceService))
 			balanceAdmin.GET("/users/:user_id/receipts", handlers.ListUserReceipts(balanceService, receiptsBucket))
+			balanceAdmin.GET("/users/:user_id/game-charges", handlers.ListUserGamePayments(balanceService))
 		}
 	}
 
