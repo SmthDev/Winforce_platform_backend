@@ -55,10 +55,14 @@ func (r *Repo) GetUserProfile(ctx context.Context, userID any) (models.Profile, 
 		email     string
 		firstName *string
 		lastName  *string
+		avatar    *string
 	)
 
-	row := r.pool.QueryRow(ctx, `SELECT id, email, first_name, last_name FROM users WHERE id = $1`, userID)
-	if err := row.Scan(&id, &email, &firstName, &lastName); err != nil {
+	row := r.pool.QueryRow(ctx, `SELECT u.id, u.email, u.first_name, u.last_name, a.avatar_link
+		FROM users u
+		LEFT JOIN avatars a ON a.user_id = u.id
+		WHERE u.id = $1`, userID)
+	if err := row.Scan(&id, &email, &firstName, &lastName, &avatar); err != nil {
 		return models.Profile{}, fmt.Errorf("get user profile: %w", err)
 	}
 
@@ -71,6 +75,9 @@ func (r *Repo) GetUserProfile(ctx context.Context, userID any) (models.Profile, 
 	}
 	if lastName != nil {
 		profile.LastName = *lastName
+	}
+	if avatar != nil {
+		profile.AvatarLink = *avatar
 	}
 	return profile, nil
 }	
