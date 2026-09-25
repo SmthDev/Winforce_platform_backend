@@ -73,6 +73,7 @@ type BalanceRepository interface {
 	ListAllReceipts(ctx context.Context, status *string, limit, offset int) ([]models.Receipt, int64, error)
 	ListUserOverviews(ctx context.Context, search string, limit, offset int) ([]models.UserOverview, int64, error)
 	GetUserOverview(ctx context.Context, userID any) (models.UserOverview, bool, error)
+	ListAdjustments(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error)
 }
 
 type ReceiptParser interface {
@@ -244,7 +245,7 @@ func (s *BalanceService) ListUserOverviews(ctx context.Context, search string, l
 	return users, total, nil
 }
 
-// GetUserDashboard возвращает сводку по пользователю и последние limit игр и чеков.
+// GetUserDashboard возвращает сводку по пользователю и последние limit игр, чеков и ручных начислений.
 func (s *BalanceService) GetUserDashboard(ctx context.Context, userID any, bucket string, limit int) (models.UserDashboard, error) {
 	user, found, err := s.repo.GetUserOverview(ctx, userID)
 	if err != nil {
@@ -264,7 +265,12 @@ func (s *BalanceService) GetUserDashboard(ctx context.Context, userID any, bucke
 		return models.UserDashboard{}, err
 	}
 
-	return models.UserDashboard{User: user, Games: games, Receipts: receipts}, nil
+	adjustments, err := s.repo.ListAdjustments(ctx, userID, clampLimit(limit), 0)
+	if err != nil {
+		return models.UserDashboard{}, fmt.Errorf("load adjustments: %w", err)
+	}
+
+	return models.UserDashboard{User: user, Games: games, Receipts: receipts, Adjustments: adjustments}, nil
 }
 
 func (s *BalanceService) fillDefaultCurrency(user *models.UserOverview) {

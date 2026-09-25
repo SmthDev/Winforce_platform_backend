@@ -367,14 +367,24 @@ func (r *Repo) ChargeGame(ctx context.Context, gameID int64, shares []GameShare,
 }
 
 func (r *Repo) ListTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error) {
+	return r.listTransactions(ctx, userID, nil, limit, offset)
+}
+
+// ListAdjustments возвращает ручные начисления и списания админа.
+func (r *Repo) ListAdjustments(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error) {
+	kind := "admin_adjustment"
+	return r.listTransactions(ctx, userID, &kind, limit, offset)
+}
+
+func (r *Repo) listTransactions(ctx context.Context, userID any, kind *string, limit, offset int) ([]models.BalanceTransaction, error) {
 	rows, err := r.pool.Query(
 		ctx,
 		`SELECT id, user_id, amount_minor, currency, kind, receipt_id, game_id, comment, created_at
 		 FROM balance_transactions
-		 WHERE user_id = $1
+		 WHERE user_id = $1 AND ($2::text IS NULL OR kind = $2::balance_tx_kind)
 		 ORDER BY created_at DESC, id DESC
-		 LIMIT $2 OFFSET $3`,
-		userID, limit, offset,
+		 LIMIT $3 OFFSET $4`,
+		userID, kind, limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list balance transactions: %w", err)
@@ -610,7 +620,7 @@ const userOverviewSelect = `SELECT u.id, u.email, u.first_name, u.last_name, u.r
 	 LEFT JOIN LATERAL (
 		SELECT count(*) FILTER (WHERE bt.kind = 'game_charge') AS games_count,
 			(-COALESCE(sum(bt.amount_minor) FILTER (WHERE bt.kind = 'game_charge'), 0))::bigint AS games_paid_minor,
-			COALESCE(sum(bt.amount_minor) FILTER (WHERE bt.kind IN ('receipt_credit', 'receipt_reversal')), 0)::bigint AS topped_up_minor,
+			COALESCE(sum(bt.amount_minor) FILTER (WHERE bt.kind IN ('receipt_credit', 'receipt_reversal', 'admin_adjustment')), 0)::bigint AS topped_up_minor,
 			max(g.played_on) AS last_game_on
 		FROM balance_transactions bt
 		LEFT JOIN games g ON g.id = bt.game_id

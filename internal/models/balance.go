@@ -8,7 +8,6 @@ import (
 
 const minorUnits = 100
 
-
 type Balance struct {
 	UserID      int64      `json:"user_id,omitempty"`
 	Amount      string     `json:"amount"`
@@ -30,7 +29,6 @@ type BalanceTransaction struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-
 func FormatMinor(amountMinor int64) string {
 	sign := ""
 	if amountMinor < 0 {
@@ -39,7 +37,6 @@ func FormatMinor(amountMinor int64) string {
 	}
 	return fmt.Sprintf("%s%d.%02d", sign, amountMinor/minorUnits, amountMinor%minorUnits)
 }
-
 
 func MinorFromFloat(amount float64) int64 {
 	return int64(math.Round(amount * minorUnits))
@@ -79,21 +76,21 @@ type UserStats struct {
 	LastGameOn     *string `json:"last_game_on,omitempty"`
 }
 
-
 type UserOverview struct {
-	ID        int64     `json:"id"`
-	Email     string    `json:"email"`
-	FirstName string    `json:"first_name,omitempty"`
-	LastName  string    `json:"last_name,omitempty"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
-	Balance   Balance   `json:"balance"`
-	Stats     UserStats `json:"stats"`
-	TelegramUsername string `json:"telegram_username,omitempty"`
+	ID               int64     `json:"id"`
+	Email            string    `json:"email"`
+	FirstName        string    `json:"first_name,omitempty"`
+	LastName         string    `json:"last_name,omitempty"`
+	Role             string    `json:"role"`
+	CreatedAt        time.Time `json:"created_at"`
+	Balance          Balance   `json:"balance"`
+	Stats            UserStats `json:"stats"`
+	TelegramUsername string    `json:"telegram_username,omitempty"`
 }
 
 type UserDashboard struct {
 	User     UserOverview  `json:"user"`
 	Games    []GamePayment `json:"games"`
 	Receipts []Receipt     `json:"receipts"`
+	Adjustments []BalanceTransaction `json:"adjustments"`
 }
