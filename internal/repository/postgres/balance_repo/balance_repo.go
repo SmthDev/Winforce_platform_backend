@@ -604,7 +604,7 @@ func duplicateError(err error) error {
 const userOverviewSelect = `SELECT u.id, u.email, u.first_name, u.last_name, u.role::text, u.created_at,
 		b.amount_minor, b.currency, b.updated_at,
 		COALESCE(s.games_count, 0), COALESCE(s.games_paid_minor, 0), COALESCE(s.topped_up_minor, 0),
-		COALESCE(rc.receipts_count, 0), s.last_game_on
+		COALESCE(rc.receipts_count, 0), s.last_game_on, tg.username
 	 FROM users u
 	 LEFT JOIN balances b ON b.user_id = u.id
 	 LEFT JOIN LATERAL (
@@ -618,7 +618,10 @@ const userOverviewSelect = `SELECT u.id, u.email, u.first_name, u.last_name, u.r
 	 ) s ON true
 	 LEFT JOIN LATERAL (
 		SELECT count(*) AS receipts_count FROM receipts r WHERE r.user_id = u.id AND r.status = 'credited'
-	 ) rc ON true`
+	 ) rc ON true
+	 LEFT JOIN LATERAL (
+		SELECT ta.username FROM telegram_accounts ta WHERE ta.user_id = u.id ORDER BY ta.linked_at DESC LIMIT 1
+	 ) tg ON true`
 
 const userSearchFilter = `($1 = '' OR u.email ILIKE '%' || $1 || '%'
 		OR u.first_name ILIKE '%' || $1 || '%' OR u.last_name ILIKE '%' || $1 || '%')`
@@ -672,18 +675,20 @@ func scanUserOverview(row rowScanner) (models.UserOverview, error) {
 		balanceCurrency  *string
 		balanceUpdatedAt *time.Time
 		lastGameOn       *time.Time
+		telegramUsername *string
 	)
 	if err := row.Scan(
 		&user.ID, &user.Email, &firstName, &lastName, &user.Role, &user.CreatedAt,
 		&balanceMinor, &balanceCurrency, &balanceUpdatedAt,
 		&user.Stats.GamesCount, &user.Stats.GamesPaidMinor, &user.Stats.ToppedUpMinor,
-		&user.Stats.ReceiptsCount, &lastGameOn,
+		&user.Stats.ReceiptsCount, &lastGameOn, &telegramUsername,
 	); err != nil {
 		return models.UserOverview{}, err
 	}
 
 	user.FirstName = deref(firstName)
 	user.LastName = deref(lastName)
+	user.TelegramUsername = deref(telegramUsername)
 
 	user.Balance.UserID = user.ID
 	if balanceMinor != nil {

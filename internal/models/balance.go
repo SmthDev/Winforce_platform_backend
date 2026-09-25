@@ -89,6 +89,7 @@ type UserOverview struct {
 	CreatedAt time.Time `json:"created_at"`
 	Balance   Balance   `json:"balance"`
 	Stats     UserStats `json:"stats"`
+	TelegramUsername string `json:"telegram_username,omitempty"`
 }
 
 type UserDashboard struct {
