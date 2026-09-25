@@ -110,9 +110,8 @@ func (n *LowBalanceNotifier) Notify(ctx context.Context) {
 
 func (n *LowBalanceNotifier) message(rcp models.LowBalanceRecipient) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "На вашем балансе %s %s — меньше %s %s. Пожалуйста, пополните баланс.",
+	fmt.Fprintf(&b, "На вашем балансе %s %s — необходимо пополнить баланс.",
 		models.FormatMinor(rcp.AmountMinor), rcp.Currency,
-		models.FormatMinor(n.opts.ThresholdMinor), rcp.Currency,
 	)
 	if n.opts.PaymentURL != "" {
 		b.WriteString("\n\n")
