@@ -98,6 +98,32 @@ func (r *Repo) Unlink(ctx context.Context, userID any) (bool, error) {
 	return tag.RowsAffected() > 0, nil
 }
 
+
+func (r *Repo) ListBelowBalance(ctx context.Context, thresholdMinor int64, defaultCurrency string) ([]models.LowBalanceRecipient, error) {
+	rows, err := r.pool.Query(
+		ctx,
+		`SELECT t.user_id, t.telegram_id, COALESCE(b.amount_minor, 0), COALESCE(b.currency, $2)
+		 FROM telegram_accounts t
+		 LEFT JOIN balances b ON b.user_id = t.user_id
+		 WHERE COALESCE(b.amount_minor, 0) < $1
+		 ORDER BY t.user_id`,
+		thresholdMinor, defaultCurrency,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list low balance accounts: %w", err)
+	}
+
+	recipients, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.LowBalanceRecipient, error) {
+		var rcp models.LowBalanceRecipient
+		err := row.Scan(&rcp.UserID, &rcp.TelegramID, &rcp.AmountMinor, &rcp.Currency)
+		return rcp, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("scan low balance accounts: %w", err)
+	}
+	return recipients, nil
+}
+
 func nullableString(s string) any {
 	if s == "" {
 		return nil

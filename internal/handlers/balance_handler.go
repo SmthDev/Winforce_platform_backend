@@ -42,6 +42,8 @@ type BalanceService interface {
 	ListUserTransactions(ctx context.Context, userID any, limit, offset int) ([]models.BalanceTransaction, error)
 	ListUserReceipts(ctx context.Context, userID any, bucket string, limit, offset int) ([]models.Receipt, error)
 	ListUserGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error)
+	ListUserOverviews(ctx context.Context, search string, limit, offset int) ([]models.UserOverview, int64, error)
+	GetUserDashboard(ctx context.Context, userID any, bucket string, limit int) (models.UserDashboard, error)
 }
 
 func GetBalance(balanceService BalanceService) gin.HandlerFunc {
@@ -265,6 +267,40 @@ func ListUserGamePayments(balanceService BalanceService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"payments": payments})
+	}
+}
+
+func ListUserOverviews(balanceService BalanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		limit, offset := paginationParams(c)
+		search := c.Query("q")
+
+		users, total, err := balanceService.ListUserOverviews(c.Request.Context(), search, limit, offset)
+		if err != nil {
+			middleware.Logger(c).Error("list user overviews failed", slog.Any("error", err))
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load users"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
+	}
+}
+
+func GetUserDashboard(balanceService BalanceService, bucket string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, ok := pathUserID(c)
+		if !ok {
+			return
+		}
+		limit, _ := paginationParams(c)
+
+		dashboard, err := balanceService.GetUserDashboard(c.Request.Context(), userID, bucket, limit)
+		if err != nil {
+			writeAdminUserError(c, err, "load user dashboard failed", "failed to load user dashboard", userID)
+			return
+		}
+
+		c.JSON(http.StatusOK, dashboard)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"platform/backend/internal/filelink"
+	"platform/backend/internal/models"
 )
 
 const (
@@ -19,6 +20,10 @@ const (
 
 	defaultParsingTimeout  = 90 * time.Second
 	defaultBalanceCurrency = "BYN"
+
+	defaultLowBalanceThreshold = 15.0
+	defaultLowBalanceNotifyAt  = "12:48"
+	defaultNotifyTimezone      = "Europe/Minsk"
 )
 
 type Config struct {
@@ -47,6 +52,10 @@ type Config struct {
 	BalanceCurrency   string
 
 	TelegramBotToken string
+
+	LowBalanceThresholdMinor int64
+	LowBalanceNotifyAt       string
+	NotifyLocation           *time.Location
 }
 
 func Load() (*Config, error) {
@@ -79,7 +88,16 @@ func Load() (*Config, error) {
 		BalanceCurrency: strings.ToUpper(GetEnv("BALANCE_CURRENCY", defaultBalanceCurrency)),
 
 		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
+
+		LowBalanceThresholdMinor: models.MinorFromFloat(GetFloatEnv("LOW_BALANCE_THRESHOLD", defaultLowBalanceThreshold)),
+		LowBalanceNotifyAt:       GetEnv("LOW_BALANCE_NOTIFY_AT", defaultLowBalanceNotifyAt),
 	}
+
+	loc, err := time.LoadLocation(GetEnv("NOTIFY_TIMEZONE", defaultNotifyTimezone))
+	if err != nil {
+		return nil, fmt.Errorf("NOTIFY_TIMEZONE: %w", err)
+	}
+	cfg.NotifyLocation = loc
 
 	cfg.AllowedOrigins = allowedOrigins(cfg.FrontendURL)
 	cfg.FilesBaseURL = strings.TrimRight(
@@ -129,6 +147,14 @@ func GetEnv(key, defaultValue string) string {
 
 func GetBoolEnv(key string, defaultValue bool) bool {
 	value, err := strconv.ParseBool(os.Getenv(key))
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func GetFloatEnv(key string, defaultValue float64) float64 {
+	value, err := strconv.ParseFloat(os.Getenv(key), 64)
 	if err != nil {
 		return defaultValue
 	}

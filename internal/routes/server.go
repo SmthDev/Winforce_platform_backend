@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"platform/backend/internal/repository/postgres/qr_repo"
 	"platform/backend/internal/repository/postgres/telegram_repo"
 	"platform/backend/internal/repository/postgres/user_repo"
+	"platform/backend/internal/repository/telegram"
 	"platform/backend/internal/service"
 )
 
@@ -108,7 +110,9 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 			balanceAdmin.POST("/game-charge", handlers.ChargeGame(balanceService))
 			balanceAdmin.POST("/receipts/:id/reject", handlers.RejectReceipt(balanceService))
 			balanceAdmin.GET("/receipts/all", handlers.ListAllReceipts(balanceService, receiptsBucket))
+			balanceAdmin.GET("/users", handlers.ListUserOverviews(balanceService))
 			balanceAdmin.GET("/users/:user_id", handlers.GetUserBalanceByID(balanceService))
+			balanceAdmin.GET("/users/:user_id/dashboard", handlers.GetUserDashboard(balanceService, receiptsBucket))
 			balanceAdmin.GET("/users/:user_id/transactions", handlers.ListUserBalanceTransactions(balanceService))
 			balanceAdmin.GET("/users/:user_id/receipts", handlers.ListUserReceipts(balanceService, receiptsBucket))
 			balanceAdmin.GET("/users/:user_id/game-charges", handlers.ListUserGamePayments(balanceService))
@@ -223,7 +227,19 @@ func run() error {
 	}
 
 	if cfg.TelegramBotToken == "" {
-		log.Warn("TELEGRAM_BOT_TOKEN is not set, telegram linking will return 503")
+		log.Warn("TELEGRAM_BOT_TOKEN is not set, telegram linking will return 503 and low balance notifications are off")
+	} else {
+		notifier, err := service.NewLowBalanceNotifier(telegram_repo.New(pool), telegram.NewBot(cfg.TelegramBotToken), log, service.LowBalanceNotifierOptions{
+			ThresholdMinor:  cfg.LowBalanceThresholdMinor,
+			DefaultCurrency: cfg.BalanceCurrency,
+			At:              cfg.LowBalanceNotifyAt,
+			Location:        cfg.NotifyLocation,
+			PaymentURL:      strings.TrimRight(cfg.FrontendURL, "/") + "/payment",
+		})
+		if err != nil {
+			return fmt.Errorf("low balance notifier setup failed: %w", err)
+		}
+		go notifier.Run(ctx)
 	}
 
 	gin.SetMode(ginMode(cfg.Env))

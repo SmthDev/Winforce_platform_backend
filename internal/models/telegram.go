@@ -22,3 +22,10 @@ type TelegramAuthPayload struct {
 	AuthDate  int64  `json:"auth_date" binding:"required"`
 	Hash      string `json:"hash" binding:"required"`
 }
+
+type LowBalanceRecipient struct {
+	UserID      int64
+	TelegramID  int64
+	AmountMinor int64
+	Currency    string
+}

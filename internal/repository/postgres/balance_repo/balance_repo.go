@@ -599,3 +599,105 @@ func duplicateError(err error) error {
 	}
 	return fmt.Errorf("create receipt: %w", err)
 }
+
+
+const userOverviewSelect = `SELECT u.id, u.email, u.first_name, u.last_name, u.role::text, u.created_at,
+		b.amount_minor, b.currency, b.updated_at,
+		COALESCE(s.games_count, 0), COALESCE(s.games_paid_minor, 0), COALESCE(s.topped_up_minor, 0),
+		COALESCE(rc.receipts_count, 0), s.last_game_on
+	 FROM users u
+	 LEFT JOIN balances b ON b.user_id = u.id
+	 LEFT JOIN LATERAL (
+		SELECT count(*) FILTER (WHERE bt.kind = 'game_charge') AS games_count,
+			(-COALESCE(sum(bt.amount_minor) FILTER (WHERE bt.kind = 'game_charge'), 0))::bigint AS games_paid_minor,
+			COALESCE(sum(bt.amount_minor) FILTER (WHERE bt.kind IN ('receipt_credit', 'receipt_reversal')), 0)::bigint AS topped_up_minor,
+			max(g.played_on) AS last_game_on
+		FROM balance_transactions bt
+		LEFT JOIN games g ON g.id = bt.game_id
+		WHERE bt.user_id = u.id
+	 ) s ON true
+	 LEFT JOIN LATERAL (
+		SELECT count(*) AS receipts_count FROM receipts r WHERE r.user_id = u.id AND r.status = 'credited'
+	 ) rc ON true`
+
+const userSearchFilter = `($1 = '' OR u.email ILIKE '%' || $1 || '%'
+		OR u.first_name ILIKE '%' || $1 || '%' OR u.last_name ILIKE '%' || $1 || '%')`
+
+func (r *Repo) ListUserOverviews(ctx context.Context, search string, limit, offset int) ([]models.UserOverview, int64, error) {
+	var total int64
+	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM users u WHERE `+userSearchFilter, search).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count users: %w", err)
+	}
+
+	rows, err := r.pool.Query(
+		ctx,
+		userOverviewSelect+`
+		 WHERE `+userSearchFilter+`
+		 ORDER BY u.id
+		 LIMIT $2 OFFSET $3`,
+		search, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list user overviews: %w", err)
+	}
+
+	users, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.UserOverview, error) {
+		return scanUserOverview(row)
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("list user overviews: %w", err)
+	}
+	return users, total, nil
+}
+
+func (r *Repo) GetUserOverview(ctx context.Context, userID any) (models.UserOverview, bool, error) {
+	user, err := scanUserOverview(r.pool.QueryRow(ctx, userOverviewSelect+` WHERE u.id = $1`, userID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.UserOverview{}, false, nil
+	}
+	if err != nil {
+		return models.UserOverview{}, false, fmt.Errorf("get user overview: %w", err)
+	}
+	return user, true, nil
+}
+
+
+func scanUserOverview(row rowScanner) (models.UserOverview, error) {
+	var (
+		user             models.UserOverview
+		firstName        *string
+		lastName         *string
+		balanceMinor     *int64
+		balanceCurrency  *string
+		balanceUpdatedAt *time.Time
+		lastGameOn       *time.Time
+	)
+	if err := row.Scan(
+		&user.ID, &user.Email, &firstName, &lastName, &user.Role, &user.CreatedAt,
+		&balanceMinor, &balanceCurrency, &balanceUpdatedAt,
+		&user.Stats.GamesCount, &user.Stats.GamesPaidMinor, &user.Stats.ToppedUpMinor,
+		&user.Stats.ReceiptsCount, &lastGameOn,
+	); err != nil {
+		return models.UserOverview{}, err
+	}
+
+	user.FirstName = deref(firstName)
+	user.LastName = deref(lastName)
+
+	user.Balance.UserID = user.ID
+	if balanceMinor != nil {
+		user.Balance.AmountMinor = *balanceMinor
+		user.Balance.Currency = *balanceCurrency
+		user.Balance.UpdatedAt = balanceUpdatedAt
+	}
+	user.Balance.Amount = models.FormatMinor(user.Balance.AmountMinor)
+
+	user.Stats.GamesPaid = models.FormatMinor(user.Stats.GamesPaidMinor)
+	user.Stats.ToppedUp = models.FormatMinor(user.Stats.ToppedUpMinor)
+	if lastGameOn != nil {
+		formatted := lastGameOn.Format(models.GameDateLayout)
+		user.Stats.LastGameOn = &formatted
+	}
+	return user, nil
+}

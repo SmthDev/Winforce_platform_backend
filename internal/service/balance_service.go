@@ -71,6 +71,8 @@ type BalanceRepository interface {
 	ListReceipts(ctx context.Context, userID any, limit, offset int) ([]models.Receipt, error)
 	ListGamePayments(ctx context.Context, userID any, limit, offset int) ([]models.GamePayment, error)
 	ListAllReceipts(ctx context.Context, status *string, limit, offset int) ([]models.Receipt, int64, error)
+	ListUserOverviews(ctx context.Context, search string, limit, offset int) ([]models.UserOverview, int64, error)
+	GetUserOverview(ctx context.Context, userID any) (models.UserOverview, bool, error)
 }
 
 type ReceiptParser interface {
@@ -229,6 +231,46 @@ func (s *BalanceService) ListUserGamePayments(ctx context.Context, userID any, l
 		return nil, err
 	}
 	return s.ListGamePayments(ctx, userID, limit, offset)
+}
+
+func (s *BalanceService) ListUserOverviews(ctx context.Context, search string, limit, offset int) ([]models.UserOverview, int64, error) {
+	users, total, err := s.repo.ListUserOverviews(ctx, strings.TrimSpace(search), clampLimit(limit), clampOffset(offset))
+	if err != nil {
+		return nil, 0, fmt.Errorf("load user overviews: %w", err)
+	}
+	for i := range users {
+		s.fillDefaultCurrency(&users[i])
+	}
+	return users, total, nil
+}
+
+// GetUserDashboard возвращает сводку по пользователю и последние limit игр и чеков.
+func (s *BalanceService) GetUserDashboard(ctx context.Context, userID any, bucket string, limit int) (models.UserDashboard, error) {
+	user, found, err := s.repo.GetUserOverview(ctx, userID)
+	if err != nil {
+		return models.UserDashboard{}, fmt.Errorf("load user overview: %w", err)
+	}
+	if !found {
+		return models.UserDashboard{}, fmt.Errorf("%w: id=%v", ErrUserNotFound, userID)
+	}
+	s.fillDefaultCurrency(&user)
+
+	games, err := s.ListGamePayments(ctx, userID, limit, 0)
+	if err != nil {
+		return models.UserDashboard{}, err
+	}
+	receipts, err := s.ListReceipts(ctx, userID, bucket, limit, 0)
+	if err != nil {
+		return models.UserDashboard{}, err
+	}
+
+	return models.UserDashboard{User: user, Games: games, Receipts: receipts}, nil
+}
+
+func (s *BalanceService) fillDefaultCurrency(user *models.UserOverview) {
+	if user.Balance.Currency == "" {
+		user.Balance.Currency = s.defaultCurrency
+	}
 }
 
 func (s *BalanceService) ListAllReceipts(ctx context.Context, status, bucket string, limit, offset int) ([]models.Receipt, int64, error) {

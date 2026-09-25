@@ -68,3 +68,31 @@ type GamePayment struct {
 	Currency      string    `json:"currency"`
 	CreatedAt     time.Time `json:"created_at"`
 }
+
+type UserStats struct {
+	GamesCount     int64   `json:"games_count"`
+	GamesPaid      string  `json:"games_paid"`
+	GamesPaidMinor int64   `json:"games_paid_minor"`
+	ToppedUp       string  `json:"topped_up"`
+	ToppedUpMinor  int64   `json:"topped_up_minor"`
+	ReceiptsCount  int64   `json:"receipts_count"`
+	LastGameOn     *string `json:"last_game_on,omitempty"`
+}
+
+
+type UserOverview struct {
+	ID        int64     `json:"id"`
+	Email     string    `json:"email"`
+	FirstName string    `json:"first_name,omitempty"`
+	LastName  string    `json:"last_name,omitempty"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	Balance   Balance   `json:"balance"`
+	Stats     UserStats `json:"stats"`
+}
+
+type UserDashboard struct {
+	User     UserOverview  `json:"user"`
+	Games    []GamePayment `json:"games"`
+	Receipts []Receipt     `json:"receipts"`
+}

@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 
+	_ "time/tzdata"
+
 	app "platform/backend/internal/routes"
 )
 
