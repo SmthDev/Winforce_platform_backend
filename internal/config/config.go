@@ -22,7 +22,7 @@ const (
 	defaultBalanceCurrency = "BYN"
 
 	defaultLowBalanceThreshold = 15.0
-	defaultLowBalanceNotifyAt  = "12:48"
+	defaultLowBalanceNotifyAt  = "13:02"
 	defaultNotifyTimezone      = "Europe/Minsk"
 )
 
