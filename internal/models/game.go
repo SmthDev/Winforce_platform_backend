@@ -11,3 +11,15 @@ type Game struct {
 	ChargedAt *time.Time `json:"charged_at,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
 }
+
+type GamePlayer struct {
+	UserID           int64     `json:"user_id"`
+	Email            string    `json:"email"`
+	FirstName        string    `json:"first_name,omitempty"`
+	LastName         string    `json:"last_name,omitempty"`
+	TelegramUsername string    `json:"telegram_username,omitempty"`
+	Amount           string    `json:"amount"`
+	AmountMinor      int64     `json:"amount_minor"`
+	Currency         string    `json:"currency"`
+	ChargedAt        time.Time `json:"charged_at"`
+}

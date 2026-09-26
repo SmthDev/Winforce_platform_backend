@@ -102,6 +102,7 @@ func NewRouter(cfg *config.Config, log *slog.Logger, authInstance *limen.Limen, 
 		{
 			gamesAdmin.POST("", handlers.CreateGame(gameService))
 			gamesAdmin.GET("", handlers.ListGames(gameService))
+			gamesAdmin.GET("/:game_id/players", handlers.ListGamePlayers(gameService))
 		}
 
 		balanceAdmin := v1.Group("/balance", middleware.RequireAuth(authInstance), middleware.RequireAdmin(accessService))

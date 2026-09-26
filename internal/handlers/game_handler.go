@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,6 +17,7 @@ import (
 type GameService interface {
 	CreateGame(ctx context.Context, playedOn, opponent string) (models.Game, error)
 	ListGames(ctx context.Context, limit, offset int) ([]models.Game, error)
+	ListGamePlayers(ctx context.Context, gameID int64) (models.Game, []models.GamePlayer, error)
 }
 
 type createGameRequest struct {
@@ -58,5 +60,28 @@ func ListGames(gameService GameService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"games": games})
+	}
+}
+
+func ListGamePlayers(gameService GameService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		gameID, err := strconv.ParseInt(c.Param("game_id"), 10, 64)
+		if err != nil || gameID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "game_id must be a positive integer"})
+			return
+		}
+
+		game, players, err := gameService.ListGamePlayers(c.Request.Context(), gameID)
+		if err != nil {
+			if errors.Is(err, service.ErrGameNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"message": "game not found"})
+				return
+			}
+			middleware.Logger(c).Error("list game players failed", slog.Any("error", err), slog.Int64("game_id", gameID))
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list game players"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"game": game, "players": players})
 	}
 }

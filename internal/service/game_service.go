@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"platform/backend/internal/models"
+	"platform/backend/internal/repository/postgres/game_repo"
 )
 
 const maxOpponentLen = 255
@@ -18,6 +19,8 @@ var ErrInvalidGame = errors.New("invalid game")
 type GameRepository interface {
 	CreateGame(ctx context.Context, playedOn time.Time, opponent string) (models.Game, error)
 	ListGames(ctx context.Context, limit, offset int) ([]models.Game, error)
+	GetGame(ctx context.Context, id int64) (models.Game, error)
+	ListGamePlayers(ctx context.Context, gameID int64) ([]models.GamePlayer, error)
 }
 
 type GameService struct {
@@ -42,4 +45,19 @@ func (s *GameService) CreateGame(ctx context.Context, playedOn, opponent string)
 
 func (s *GameService) ListGames(ctx context.Context, limit, offset int) ([]models.Game, error) {
 	return s.repo.ListGames(ctx, clampLimit(limit), clampOffset(offset))
+}
+
+func (s *GameService) ListGamePlayers(ctx context.Context, gameID int64) (models.Game, []models.GamePlayer, error) {
+	game, err := s.repo.GetGame(ctx, gameID)
+	if errors.Is(err, game_repo.ErrGameNotFound) {
+		return models.Game{}, nil, fmt.Errorf("%w: %v", ErrGameNotFound, err)
+	}
+	if err != nil {
+		return models.Game{}, nil, err
+	}
+	players, err := s.repo.ListGamePlayers(ctx, gameID)
+	if err != nil {
+		return models.Game{}, nil, err
+	}
+	return game, players, nil
 }
