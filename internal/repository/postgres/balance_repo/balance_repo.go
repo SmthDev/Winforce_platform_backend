@@ -611,7 +611,7 @@ func duplicateError(err error) error {
 }
 
 
-const userOverviewSelect = `SELECT u.id, u.email, u.first_name, u.last_name, u.role::text, u.created_at,
+const userOverviewSelect = `SELECT u.id, u.email, u.username, u.first_name, u.last_name, u.role::text, u.created_at,
 		b.amount_minor, b.currency, b.updated_at,
 		COALESCE(s.games_count, 0), COALESCE(s.games_paid_minor, 0), COALESCE(s.topped_up_minor, 0),
 		COALESCE(rc.receipts_count, 0), s.last_game_on, tg.username
@@ -633,7 +633,7 @@ const userOverviewSelect = `SELECT u.id, u.email, u.first_name, u.last_name, u.r
 		SELECT ta.username FROM telegram_accounts ta WHERE ta.user_id = u.id ORDER BY ta.linked_at DESC LIMIT 1
 	 ) tg ON true`
 
-const userSearchFilter = `($1 = '' OR u.email ILIKE '%' || $1 || '%'
+const userSearchFilter = `($1 = '' OR u.email ILIKE '%' || $1 || '%' OR u.username ILIKE '%' || $1 || '%'
 		OR u.first_name ILIKE '%' || $1 || '%' OR u.last_name ILIKE '%' || $1 || '%')`
 
 func (r *Repo) ListUserOverviews(ctx context.Context, search string, limit, offset int) ([]models.UserOverview, int64, error) {
@@ -679,6 +679,7 @@ func (r *Repo) GetUserOverview(ctx context.Context, userID any) (models.UserOver
 func scanUserOverview(row rowScanner) (models.UserOverview, error) {
 	var (
 		user             models.UserOverview
+		username         *string
 		firstName        *string
 		lastName         *string
 		balanceMinor     *int64
@@ -688,7 +689,7 @@ func scanUserOverview(row rowScanner) (models.UserOverview, error) {
 		telegramUsername *string
 	)
 	if err := row.Scan(
-		&user.ID, &user.Email, &firstName, &lastName, &user.Role, &user.CreatedAt,
+		&user.ID, &user.Email, &username, &firstName, &lastName, &user.Role, &user.CreatedAt,
 		&balanceMinor, &balanceCurrency, &balanceUpdatedAt,
 		&user.Stats.GamesCount, &user.Stats.GamesPaidMinor, &user.Stats.ToppedUpMinor,
 		&user.Stats.ReceiptsCount, &lastGameOn, &telegramUsername,
@@ -696,6 +697,7 @@ func scanUserOverview(row rowScanner) (models.UserOverview, error) {
 		return models.UserOverview{}, err
 	}
 
+	user.Username = deref(username)
 	user.FirstName = deref(firstName)
 	user.LastName = deref(lastName)
 	user.TelegramUsername = deref(telegramUsername)

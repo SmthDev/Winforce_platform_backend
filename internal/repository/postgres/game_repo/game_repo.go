@@ -77,7 +77,7 @@ func (r *Repo) GetGame(ctx context.Context, id int64) (models.Game, error) {
 func (r *Repo) ListGamePlayers(ctx context.Context, gameID int64) ([]models.GamePlayer, error) {
 	rows, err := r.pool.Query(
 		ctx,
-		`SELECT u.id, u.email, u.first_name, u.last_name, tg.username,
+		`SELECT u.id, u.email, u.username, u.first_name, u.last_name, tg.username,
 			-bt.amount_minor, bt.currency, bt.created_at
 		 FROM balance_transactions bt
 		 JOIN users u ON u.id = bt.user_id
@@ -95,13 +95,17 @@ func (r *Repo) ListGamePlayers(ctx context.Context, gameID int64) ([]models.Game
 	players, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.GamePlayer, error) {
 		var (
 			p         models.GamePlayer
+			nick      *string
 			firstName *string
 			lastName  *string
 			username  *string
 		)
-		if err := row.Scan(&p.UserID, &p.Email, &firstName, &lastName, &username,
+		if err := row.Scan(&p.UserID, &p.Email, &nick, &firstName, &lastName, &username,
 			&p.AmountMinor, &p.Currency, &p.ChargedAt); err != nil {
 			return models.GamePlayer{}, err
+		}
+		if nick != nil {
+			p.Username = *nick
 		}
 		if firstName != nil {
 			p.FirstName = *firstName

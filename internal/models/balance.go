@@ -79,6 +79,7 @@ type UserStats struct {
 type UserOverview struct {
 	ID               int64     `json:"id"`
 	Email            string    `json:"email"`
+	Username         string    `json:"username,omitempty"`
 	FirstName        string    `json:"first_name,omitempty"`
 	LastName         string    `json:"last_name,omitempty"`
 	Role             string    `json:"role"`

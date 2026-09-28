@@ -53,22 +53,26 @@ func (r *Repo) GetUserProfile(ctx context.Context, userID any) (models.Profile, 
 	var (
 		id        int64
 		email     string
+		username  *string
 		firstName *string
 		lastName  *string
 		avatar    *string
 	)
 
-	row := r.pool.QueryRow(ctx, `SELECT u.id, u.email, u.first_name, u.last_name, a.avatar_link
+	row := r.pool.QueryRow(ctx, `SELECT u.id, u.email, u.username, u.first_name, u.last_name, a.avatar_link
 		FROM users u
 		LEFT JOIN avatars a ON a.user_id = u.id
 		WHERE u.id = $1`, userID)
-	if err := row.Scan(&id, &email, &firstName, &lastName, &avatar); err != nil {
+	if err := row.Scan(&id, &email, &username, &firstName, &lastName, &avatar); err != nil {
 		return models.Profile{}, fmt.Errorf("get user profile: %w", err)
 	}
 
 	profile := models.Profile{
 		ID:    strconv.FormatInt(id, 10),
 		Email: email,
+	}
+	if username != nil {
+		profile.Username = *username
 	}
 	if firstName != nil {
 		profile.FirstName = *firstName

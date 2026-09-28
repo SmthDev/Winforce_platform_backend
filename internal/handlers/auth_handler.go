@@ -49,11 +49,14 @@ func withCredentialAlias(body []byte) []byte {
 	if _, ok := payload["credential"]; ok {
 		return body
 	}
-	email, ok := payload["email"]
+	credential, ok := payload["username"]
+	if !ok {
+		credential, ok = payload["email"]
+	}
 	if !ok {
 		return body
 	}
-	payload["credential"] = email
+	payload["credential"] = credential
 
 	patched, err := json.Marshal(payload)
 	if err != nil {

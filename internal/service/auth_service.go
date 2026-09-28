@@ -26,7 +26,9 @@ func NewAuth(cfg *config.Config, pool *pgxpool.Pool) (*limen.Limen, *sql.DB, err
 		Database: sqladapter.NewPostgreSQL(sqlDB),
 		Secret:   []byte(cfg.LimenSecret),
 		Plugins: []limen.Plugin{
-			credentialpassword.New(),
+			credentialpassword.New(
+				credentialpassword.WithRequireUsernameOnSignUp(true),
+			),
 		},
 		HTTP: limen.NewDefaultHTTPConfig(
 			limen.WithHTTPBasePath(AuthBasePath),

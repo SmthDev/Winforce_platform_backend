@@ -15,6 +15,7 @@ type Game struct {
 type GamePlayer struct {
 	UserID           int64     `json:"user_id"`
 	Email            string    `json:"email"`
+	Username         string    `json:"username,omitempty"`
 	FirstName        string    `json:"first_name,omitempty"`
 	LastName         string    `json:"last_name,omitempty"`
 	TelegramUsername string    `json:"telegram_username,omitempty"`

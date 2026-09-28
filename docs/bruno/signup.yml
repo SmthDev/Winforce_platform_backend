@@ -16,6 +16,7 @@ http:
     data: |-
       {
         "email": "ksksn@gmail.com",
+        "username": "ksksn",
         "password": "Aleksandra81!"
       }
 
